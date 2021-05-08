@@ -9,6 +9,7 @@ from sentinelsat import SentinelAPI, read_geojson, geojson_to_wkt #create and re
 
 ## General imports ##
 import os
+import sys
 import json # for metadata
 import zipfile # unzip collected data
 import numpy as np
@@ -48,6 +49,7 @@ load_dotenv()
 USER = os.getenv('USER')
 PASSWORD = os.getenv('PASSWORD')
 URL = os.getenv('URL')
+sys.path.append("processing")
 
 #############
 ## Classes ##
@@ -340,9 +342,9 @@ class Image():
 	"""
 	
 	BANDS = {
-			 "10m": {"B02":"Blue", "B03":"Green", "B04":"Red", "B08":"NIR"},
-			 "20m": {"B02":"Blue", "B03":"Green", "B04":"Red", "B05":"Re1", "B06":"Re2", "B07":"Re3", "B11":"SWIR1", "B12":"SWIR2", "B8A":"NIRn"},
-			 "60m": {"B01":"Coastal aerosol", "B02":"Blue", "B03":"Green", "B04":"Red", "B05":"Re1", "B06":"Re2", "B07":"Re3", "B09":"Water vapor", "B11":"SWIR1", "B12":"SWIR2", "B8A":"NIRn"}
+			 "R10m": {"B02":"Blue", "B03":"Green", "B04":"Red", "B08":"NIR"},
+			 "R20m": {"B02":"Blue", "B03":"Green", "B04":"Red", "B05":"Re1", "B06":"Re2", "B07":"Re3", "B11":"SWIR1", "B12":"SWIR2", "B8A":"NIRn"},
+			 "R60m": {"B01":"Coastal aerosol", "B02":"Blue", "B03":"Green", "B04":"Red", "B05":"Re1", "B06":"Re2", "B07":"Re3", "B09":"Water vapor", "B11":"SWIR1", "B12":"SWIR2", "B8A":"NIRn"}
 			 }
 	WORKING_PATH = os.path.dirname(__file__)
 	ARCHIVES_PATH = os.path.join(WORKING_PATH, "Archives")
@@ -603,9 +605,9 @@ class Image():
 			else:
 				print("## Proceeding to normalization. ##", flush=True)
 				tab = self.image
-				tab = 255*((tab-tab.min())/(tab.max()-tab.min()))
-				tab[tab<0] = 0
-				tab[tab>255] = 255
+				tab = 255 * ((tab-tab.min())/(tab.max()-tab.min()))
+				tab[tab < 0] = 0
+				tab[tab > 255] = 255
 				tab[~np.isfinite(tab)] = 0
 				self.image = tab.astype("uint16")
 

@@ -8,15 +8,17 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import time
+import sys
 
 ## Custom imports ##
 from image import Image
-from processing import mask, cluster, crop_2D, crop_3D
+from processing import mask, cluster, crop_2D, crop_3D, water_spectral_analysis
 
 ###############
 ## Constants ##
 ###############
 
+sys.path.append("processing")
 Fx = np.array([
 			   [-1, 0, 1],
 			   [-2, 0, 2],
@@ -119,7 +121,7 @@ def filter():
 	plt.show()
 
 def main():
-	img = Image("S2A_MSIL2A_20200206T111231_N0214_R137_T30TXT_20200206T122704")
+	img = Image("S2A_MSIL2A_20200222T163301_N0214_R083_T16RCV_20200222T205207")
 
 	plt.figure(1)
 	ndvi = img.get_NDWIwb("R10m")
@@ -144,11 +146,45 @@ def main():
 	b2[b2 > 1] = 1
 
 	rgb = np.dstack([b4, b3, b2])
+
 	rgb = crop_3D(rgb)
 	plt.imshow(rgb)
 	plt.xticks([])
 	plt.yticks([])
 	plt.show()
 
+def test():
+	img1 = Image("S2A_MSIL2A_20200222T163301_N0214_R083_T16RCV_20200222T205207")
+	img2 = Image("S2A_MSIL2A_20200319T101021_N0214_R022_T32TQR_20200319T130518")
+
+	bands1 = water_spectral_analysis(image=img1)
+	bands2 = water_spectral_analysis(image=img2)
+
+	x1 = np.array([bands1[band]['wl'] for band in bands1.keys()]) * 10 ** (-9)
+	y1 = np.array([bands1[band]['mean'] for band in bands1.keys()])
+	std1 = np.array([bands1[band]['std'] for band in bands1.keys()])
+
+	x2 = np.array([bands2[band]['wl'] for band in bands2.keys()]) * 10 ** (-9)
+	y2 = np.array([bands2[band]['mean'] for band in bands2.keys()])
+	std2 = np.array([bands2[band]['std'] for band in bands2.keys()])
+
+	plt.figure(1)
+	lines1 = plt.semilogx(x1, y1, color='b', linestyle='-', linewidth=2)
+	plt.semilogx(x1, y1 + 2 * std1, color='b', linestyle='--', linewidth=1)
+	plt.semilogx(x1, y1 - 2 * std1, color='b', linestyle='--', linewidth=1)
+	lines2 = plt.semilogx(x2, y2, color='k', linestyle='-', linewidth=2)
+	plt.semilogx(x2, y2 + 2 * std2, color='k', linestyle='--', linewidth=1)
+	plt.semilogx(x2, y2 - 2 * std2, color='k', linestyle='--', linewidth=1)
+	plt.legend(lines1 + lines2, ['Image 1', 'Image 2'])
+
+	plt.figure(2)
+	plt.subplot(121)
+	plt.imshow(img1.get_RGB(res="R10m", pLow=0.1, pHigh=0.75))
+	plt.title('Image 1')
+	plt.subplot(122)
+	plt.imshow(img2.get_RGB(res="R10m", pLow=0.1, pHigh=0.75))
+	plt.title('Image 2')
+	plt.show()
+
 if __name__ == '__main__':
-	main()
+	test()
