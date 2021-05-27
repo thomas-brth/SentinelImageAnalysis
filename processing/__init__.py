@@ -6,6 +6,9 @@
 
 ## General imports
 import numpy as np
+from scipy import interpolate
+from skimage import morphology
+import cv2 as cv
 
 ## Custom imports
 from mask import water_mask
@@ -24,31 +27,43 @@ from mask import water_mask
 
 def crop_2D(arr : np.array):
 	n, m = arr.shape
-	while np.isnan(arr[0, :]).any() or np.isnan(arr[:, 0]).any() or np.isnan(arr[n-1, :]).any() or np.isnan(arr[:, m-1]).any():
-		if np.isnan(arr[0, :]).any():
+	arr_mask = morphology.binary_opening(arr == 0)
+	while arr_mask[0, :].any() or arr_mask[:, 0].any() or arr_mask[n-1, :].any() or arr_mask[:, m-1].any():
+		if arr_mask[0, :].any():
 			arr = arr[1:, :]
+			arr_mask = arr_mask[1:, :]
 			n -= 1
-		if np.isnan(arr[:, 0]).any():
+		if arr_mask[:, 0].any():
 			arr = arr[:, 1:]
+			arr_mask = arr_mask[:, 1:]
 			m -= 1
-		if np.isnan(arr[n-1, :]).any():
+		if arr_mask[n-1, :].any():
 			arr = arr[:n-1, :]
+			arr_mask = arr_mask[:n-1, :]
 			n -= 1
-		if np.isnan(arr[:, m-1]).any():
+		if arr_mask[:, m-1].any():
 			arr = arr[:, :m-1]
+			arr_mask = arr_mask[:, :m-1]
 			m -= 1
 	return arr
 
 def crop_3D(image : np.array):
 	res = []
-	# Image pre-treatment : previously, non-finite values have been replaced by 0.
-	# It is required to replace them back with np.nan, so that we can use  crop_2D function.
-	null_mask = np.dstack([image[:, :, 0] == 0, image[:, :, 1] == 0, image[:, :, 2] == 0])
-	image[null_mask] = np.nan
 	for i in range(3):
 		res.append(crop_2D(image[:, :, i]))
 	image = np.dstack(res)
 	return image
+
+def interpolation_2d(arr : np.ndarray, res_sup : int):
+	n, m = arr.shape
+	x, y = np.arange(0, n, 1), np.arange(0, m, 1)
+	f = interpolate.interp2d(y, x, arr, kind='cubic')
+	xx, yy = np.arange(0, n, 1 / res_sup), np.arange(0, m, 1 / res_sup)
+	return f(yy, xx)
+
+def sharpen(arr : np.ndarray):
+	kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+	return cv.filter2D(arr, -1, kernel)
 
 def water_spectral_analysis(image, threshold : float = 0.2, reversed : bool = False):
 	bands = {
@@ -69,10 +84,11 @@ def water_spectral_analysis(image, threshold : float = 0.2, reversed : bool = Fa
 		mask = water_mask(image=image, res=bands[band]['res'], threshold=threshold, reversed=reversed)
 		band_arr = image.load_single_band(res=bands[band]['res'], band=band) / 10000
 		band_arr[band_arr > 1] = 1
+		print(band)
+		print(mask.shape, band_arr.shape)
 		bands[band]['mean'] = np.mean(band_arr[mask])
 		bands[band]['std'] = np.std(band_arr[mask])
 	return bands
-
 
 def main():
 	pass

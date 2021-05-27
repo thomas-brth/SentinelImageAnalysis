@@ -10,6 +10,7 @@ from sentinelsat import SentinelAPI, read_geojson, geojson_to_wkt #create and re
 ## General imports ##
 import os
 import sys
+sys.path.append("processing")
 import json # for metadata
 import zipfile # unzip collected data
 import numpy as np
@@ -35,10 +36,13 @@ from matplotlib import pyplot as plt # display images
 import cv2 as cv
 
 ## Image ##
-from skimage import exposure # re-balance images exposure and luminosity
+from skimage import exposure, morphology
 
 ## Environment import ##
 from dotenv import load_dotenv
+
+## Custom imports ##
+from processing import crop_2D, crop_3D
 
 ###############
 ## Constants ##
@@ -70,10 +74,6 @@ class Query():
 		- length: int, size of q_dataframe (an empty DataFrame means that no products matched the query)
 		- date_from: datetime.date(), low time boundary for the query
 		- date_to: datetime.date(), high time boundary for the query
-
-	Constants:
-		- SOONER/LATER: int, these 2 constants represent the 2 possible modes for the query process.
-		- DATESTEPS: list(String), this constant is a list with every possible steps for the query process.
 	"""
 	
 	SOONER = 1
@@ -162,12 +162,15 @@ class Query():
 		print("Date range changed.", flush=True)
 		
 	def find_data(self, mode, step):
+		"""
+		Search for available and corresponding data. Return the id of the found tile with the best cloudcover percentage.
+		"""
 		self.query_from_json()
 		while (self.length < 1):
 			print("No product found. Retrying with a new date range.", flush=True)
 			self.extend_date_range(mode, step)
 			self.query_from_json()
-		return self.q_dataframe.head(1).index[0], self.q_dataframe.head(1)["cloudcoverpercentage"] #return the name of the first file and cloud cover percentage
+		return self.q_dataframe.head(1).index[0], self.q_dataframe.head(1)["cloudcoverpercentage"]
 
 	def download_item(self, name):
 		"""
@@ -178,6 +181,9 @@ class Query():
 		return meta
 
 	def unzip_data(self, meta):
+		"""
+		Unzip downloaded data.
+		"""
 		zip_dir = meta["path"]
 		data_dir = os.path.normpath(os.getcwd() + os.sep + "Data")
 		with zipfile.ZipFile(zip_dir, "r") as zip_ref:
@@ -186,6 +192,7 @@ class Query():
 
 	def process(self, mode, step):
 		"""
+		Proceed to retreiving desired data. 
 		"""
 		_bool = True
 		count = 0
@@ -211,6 +218,12 @@ class Query():
 
 class ImageWriter():
 	"""
+	# ImageWriter class Content #
+	Object used to write downloaded data into desired format. Data are then stored in separate folders, ordered by resolution.
+	
+	Attributes:
+		- meta: Dictionary, metadata of downloaded data
+		- geojson: String, name of the json file containing the footprint data
 	"""
 
 	WORKING_PATH = os.path.dirname(__file__)
@@ -281,6 +294,9 @@ class ImageWriter():
 		print("## New cropped image created ##", flush=True)
 
 	def write(self):
+		"""
+		Write data into a .tiff file for each resolution.
+		"""
 		data_path = self.get_data_path()
 		dir_path = self.create_dir_path()
 		list_res = ["R10m","R20m","R60m"]
@@ -290,7 +306,7 @@ class ImageWriter():
 
 	def write_res(self, data_path, res, dir_path):
 		"""
-		'res' argument is a String with the value "R10m", "R20m" or "R60m".
+		Write data for a given resolution.
 		"""
 		new_data_path = os.path.join(data_path, res)
 		new_dir_path = os.path.join(dir_path, res)
@@ -302,16 +318,17 @@ class ImageWriter():
 		band_number = 1
 
 		b = rio.open(os.path.join(new_data_path, list_bands[1]), 'r')
-		with rio.open(os.path.join(self.WORKING_PATH, "temp" + os.sep + "temp.tiff"), 'w', driver="Gtiff", width=b.width, height=b.height, count=len(list_bands), crs=b.crs, transform=b.transform, dtype=b.dtypes[0]) as temp:
+		_type = 'uint16'
+		with rio.open(os.path.join(self.WORKING_PATH, "temp" + os.sep + "temp.tiff"), 'w', driver="Gtiff", width=b.width, height=b.height, count=len(list_bands), crs=b.crs, transform=b.transform, dtype=_type) as temp:
 			b.close()
 			b = None
 			for f in list_bands:
 				ftype = f.split("_")[2]
-				bool = ((ftype != "AOT") and (ftype != "SCL") and (ftype != "TCI") and (ftype != "WVP"))
-				if (bool):
-					with rio.open(os.path.join(new_data_path,f),'r') as band:
+				_bool = ((ftype != "AOT") and (ftype != "TCI") and (ftype != "WVP"))
+				if (_bool):
+					with rio.open(os.path.join(new_data_path, f),'r') as band:
 						print(f"## Writing band {ftype} for resolution {res} in temporary file. ##", flush=True)
-						temp.write(band.read(1), band_number)
+						temp.write(band.read(1).astype(_type), band_number)
 						info["bands"][ftype] = band_number
 						band_number += 1
 						band.close()
@@ -333,19 +350,27 @@ class Image():
 		- folder_path: String, path of the folder where the image is stored.
 		- meta: dict(), metadata of the image.
 		- image: np.array(), image stored as an array. None if no image has been loaded.
-
-	Constants:
-		- BANDS: dict(), give the possible bands and their name for each resolution.
-		- WORKING_PATH: String, current working directory.
-		- ARCHIVES_PATH: String, path where all archives are stored, i.e. downloaded and pre-processes images.
-
 	"""
 	
 	BANDS = {
-			 "R10m": {"B02":"Blue", "B03":"Green", "B04":"Red", "B08":"NIR"},
-			 "R20m": {"B02":"Blue", "B03":"Green", "B04":"Red", "B05":"Re1", "B06":"Re2", "B07":"Re3", "B11":"SWIR1", "B12":"SWIR2", "B8A":"NIRn"},
-			 "R60m": {"B01":"Coastal aerosol", "B02":"Blue", "B03":"Green", "B04":"Red", "B05":"Re1", "B06":"Re2", "B07":"Re3", "B09":"Water vapor", "B11":"SWIR1", "B12":"SWIR2", "B8A":"NIRn"}
-			 }
+			"R10m": {"B02":"Blue", "B03":"Green", "B04":"Red", "B08":"NIR"},
+			"R20m": {"B02":"Blue", "B03":"Green", "B04":"Red", "B05":"Re1", "B06":"Re2", "B07":"Re3", "B11":"SWIR1", "B12":"SWIR2", "B8A":"NIRn"},
+			"R60m": {"B01":"Coastal aerosol", "B02":"Blue", "B03":"Green", "B04":"Red", "B05":"Re1", "B06":"Re2", "B07":"Re3", "B09":"Water vapor", "B11":"SWIR1", "B12":"SWIR2", "B8A":"NIRn"}
+	}
+	SCL_LABELS = {
+			0 : "NO_DATA",
+			1 : "SATURATED_OR_DEFECTIVE",
+			2 : "DARK_AREA_PIXELS",
+			3 : "CLOUD_SHADOWS",
+			4 : "VEGETATION",
+			5 : "NOT_VEGETATED",
+			6 : "WATER",
+			7 : "UNCLASSIFIED",
+			8 : "CLOUD_MEDIUM_PROBABILITY",
+			9 : "CLOUD_HIGH_PROBABILITY",
+			10 : "THIN_CIRRUS",
+			11 : "SNOW"
+	}
 	WORKING_PATH = os.path.dirname(__file__)
 	ARCHIVES_PATH = os.path.join(WORKING_PATH, "Archives")
 	IMAGES_PATH = os.path.join(WORKING_PATH, "Images")
@@ -369,6 +394,9 @@ class Image():
 		return self.meta["date"]
 
 	def load_info(self, res):
+		"""
+		Load band metadata for a given resolution.
+		"""
 		res_path = os.path.join(self.folder_path, res)
 		with open(os.path.join(res_path, "bands_info.json"), 'r') as foo:
 			b_info = json.load(foo)
@@ -386,9 +414,11 @@ class Image():
 		else:
 			with rio.open(os.path.join(path, filename), 'r') as file:
 				self.image =  plot.reshape_as_image(
-													[file.read(bands[0]),
-													 file.read(bands[1]),
-													 file.read(bands[2])]
+													[
+													crop_2D(file.read(bands[0])),
+													crop_2D(file.read(bands[1])),
+													crop_2D(file.read(bands[2]))
+													]
 													)
 				file.close()
 
@@ -402,8 +432,8 @@ class Image():
 			print("## Error. Wrong band combination.", flush=True)
 		else:
 			with rio.open(os.path.join(path, filename), 'r') as file:
-				arr1 = file.read(indexes[0])
-				arr2 = file.read(indexes[1])
+				arr1 = crop_2D(file.read(indexes[0]))
+				arr2 = crop_2D(file.read(indexes[1]))
 				self.image = (arr1.astype("float32")-arr2.astype("float32"))/(arr1+arr2)
 				file.close()
 
@@ -419,8 +449,28 @@ class Image():
 			print(f"Band {band} not available for this resolution.", flush=True)
 		else:
 			with rio.open(os.path.join(res_path, filename), 'r') as file:
-				self.image = file.read(b_info["bands"][band])
+				self.image = crop_2D(file.read(b_info["bands"][band]))
 				file.close()
+		return self.image
+
+	def get_SCL(self, res):
+		"""
+		Get the scene classification image, as proocessed by Sentinel L2A SC Algorithm.
+		"""
+		if res == "R10m":
+			# Get 20m resolution and simply double the number of grid points. 
+			scl = self.load_single_band(res="R20m", band="SCL")
+			n, m = scl.shape
+			new_scl = np.zeros((n * 2, m * 2))
+			for i in range(n):
+				for j in range(m):
+					new_scl[i * 2, j * 2] = scl[i, j]
+					new_scl[i * 2 + 1, j * 2] = scl[i, j]
+					new_scl[i * 2, j * 2 + 1] = scl[i, j]
+					new_scl[i * 2 + 1, j * 2 + 1] = scl[i, j]
+			self.image = new_scl
+		else:
+			self.load_single_band(res=res, band="SCL")
 		return self.image
 
 	def get_RGB(self, res, pLow, pHigh):
@@ -635,8 +685,9 @@ def check_image_filename(filename):
 	return not ((filename == "") or (filename[len(filename)-4:len(filename)] != ".png") or (os.listdir(Image.IMAGES_PATH).__contains__(filename)))
 
 def main():
-	q = Query("Amboise.json", (date(2021, 4, 30), date(2021, 5, 1)), 10)
+	q = Query("Nice.json", (date(2021, 5, 20), date(2021, 5, 21)), 20)
 	q.process(1, "day")
+
 
 if __name__ == '__main__':
 	main()
