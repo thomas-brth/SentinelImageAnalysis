@@ -26,6 +26,9 @@ from mask import water_mask
 ###############
 
 def crop_2D(arr : np.array):
+	"""
+	Crop a 2D array by removing all "0" on the outer boundary.
+	"""
 	n, m = arr.shape
 	arr_mask = morphology.binary_opening(arr == 0)
 	while arr_mask[0, :].any() or arr_mask[:, 0].any() or arr_mask[n-1, :].any() or arr_mask[:, m-1].any():
@@ -48,6 +51,10 @@ def crop_2D(arr : np.array):
 	return arr
 
 def crop_3D(image : np.array):
+	"""
+	Apply the crop_2D function on each image band.
+	This function enables to adjust the returned satellite imagery.
+	"""
 	res = []
 	for i in range(3):
 		res.append(crop_2D(image[:, :, i]))
@@ -55,6 +62,9 @@ def crop_3D(image : np.array):
 	return image
 
 def interpolation_2d(arr : np.ndarray, res_sup : int):
+	"""
+	Perform a bicubic interpolation over a given array.
+	"""
 	n, m = arr.shape
 	x, y = np.arange(0, n, 1), np.arange(0, m, 1)
 	f = interpolate.interp2d(y, x, arr, kind='cubic')
@@ -62,10 +72,16 @@ def interpolation_2d(arr : np.ndarray, res_sup : int):
 	return f(yy, xx)
 
 def sharpen(arr : np.ndarray):
+	"""
+	Sharpen a given 2D array.
+	"""
 	kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
 	return cv.filter2D(arr, -1, kernel)
 
 def water_spectral_analysis(image, threshold : float = 0.2, reversed : bool = False):
+	"""
+	Compute for each band the average value and the standard deviation of every water pixels in a given image.
+	"""
 	bands = {
 		'B01' : {'res' : 'R60m', 'wl': 443, 'mean' : 0, 'std' : 0},
 		'B02' : {'res' : 'R10m', 'wl': 490, 'mean' : 0, 'std' : 0},

@@ -279,8 +279,8 @@ class ImageWriter():
 				features = [feature["geometry"] for feature in geojson]
 				new_geom = []
 				for geom in features:
-					#apply the good crs to the geometry
-					new_geom.append(tf.transform_geom(geojson.crs,src.crs.to_dict(),geom))
+					# apply the good crs to the geometry
+					new_geom.append(tf.transform_geom(geojson.crs, src.crs.to_dict(), geom))
 
 			out_image, out_transform = msk.mask(src, new_geom, crop=True)
 			out_meta = src.meta.copy()
@@ -327,7 +327,7 @@ class ImageWriter():
 				_bool = ((ftype != "AOT") and (ftype != "TCI") and (ftype != "WVP"))
 				if (_bool):
 					with rio.open(os.path.join(new_data_path, f),'r') as band:
-						print(f"## Writing band {ftype} for resolution {res} in temporary file. ##", flush=True)
+						print(f"## Writing {ftype} for resolution {res} in temporary file. ##", flush=True)
 						temp.write(band.read(1).astype(_type), band_number)
 						info["bands"][ftype] = band_number
 						band_number += 1

@@ -80,65 +80,29 @@ def water():
 	plt.title("Enhanced True Color Image")
 	plt.show()
 
-def filter():
-	img = Image("S2A_MSIL2A_20210425T105021_N0300_R051_T31UCP_20210425T135357")
-
-	b4 = img.load_single_band("R10m", "B04") / 10000 *2.9
-	b3 = img.load_single_band("R10m", "B03") / 10000 *3.1
-	b2 = img.load_single_band("R10m", "B02") / 10000 *3.0
-	
-	cor = 0.036
-	b4 = corr(b4, cor)
-	b3 = corr(b3, 2 * cor)
-	b2 = corr(b2, 3.25 * cor)
-
-	b4[b4 > 1] = 1
-	b3[b3 > 1] = 1
-	b2[b2 > 1] = 1
-
-	gray = 0.2989 * b4 + 0.5870 * b3 + 0.1140 * b2
-	#gray = gray[750:1006, 250:506]
-
-	n, m = gray.shape
-	res1 = np.zeros((n, m))
-	res2 = np.zeros((n, m))
-	for i in range(1, n-1):
-		for j in range(1, m-1):
-			res1[i, j] = np.sum(gray[i-1:i+2, j-1:j+2] * Fx)
-			res2[i, j] = np.sum(gray[i-1:i+2, j-1:j+2] * Fy)
-	res1[res1 > 1] = 1
-	res1[res1 < 0] = 0
-	res2[res2 > 1] = 1
-	res2[res2 < 0] = 0
-
-	plt.figure(1)
-	plt.imshow(gray)
-	plt.figure(2)
-	plt.subplot(121)
-	plt.imshow(res1)
-	plt.subplot(122)
-	plt.imshow(res2)
-	plt.show()
-
 def main():
 	img = Image("S2A_MSIL2A_20210406T102021_N0300_R065_T32TLP_20210406T150850")
 
 	plt.figure(1)
-	ndvi = img.get_NDWIwb("R10m")
+	rgb = img.get_RGB(res="R10m", pLow=0.01, pHigh=0.75)
+	ndwi = img.get_NDWIwb(res="R10m")
+	k_means = cluster.KMeansCluster(n_clusters=2, iter_max=1000)
+	k_means.sample_fit(data=ndwi, epsilon=0.001)
+	dist, labels = k_means.compute_labels(data=ndwi)
 
-	plt.imshow(ndvi, cmap="ocean")
+	plt.subplot(121)
+	plt.imshow(rgb)
 	plt.xticks([])
 	plt.yticks([])
 	
-	plt.figure(2)
-	scl = img.get_SCL("R10m")
-
-	plt.imshow(scl, cmap="tab10")
+	plt.subplot(122)
+	plt.imshow(labels, cmap="tab10")
 	plt.xticks([])
 	plt.yticks([])
+
 	plt.show()
 
-def test():
+def test_spectral():
 	img1 = Image("S2A_MSIL2A_20200222T163301_N0214_R083_T16RCV_20200222T205207")
 	img2 = Image("S2A_MSIL2A_20200319T101021_N0214_R022_T32TQR_20200319T130518")
 
