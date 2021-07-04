@@ -13,7 +13,7 @@ sys.path.append("processing")
 
 ## Custom imports ##
 from image import Image
-from processing import mask, cluster, crop_2D, crop_3D, water_spectral_analysis, interpolation_2d, sharpen
+from processing import mask, cluster, crop_2D, crop_3D, water_spectral_analysis, interpolation_2d, sharpen, MidpointNormalize
 
 ###############
 ## Constants ##
@@ -160,5 +160,109 @@ def test_interp():
 	plt.imshow(ndvi_sharp)
 	plt.show()
 
+def lytton_analysis():
+	# 01/06 Image
+	img1 = Image("S2A_MSIL2A_20210601T185921_N0300_R013_T10UEA_20210601T232218")
+	b8_1 = img1.load_single_band("R10m", "B08") / 10000 * 2.3
+	b4_1 = img1.load_single_band("R10m", "B04") / 10000 * 2.9
+	b3_1 = img1.load_single_band("R10m", "B03") / 10000 * 3.1
+	b2_1 = img1.load_single_band("R10m", "B02") / 10000 * 3.0
+
+	# 29/06 Image
+	img2 = Image("S2B_MSIL2A_20210629T190919_N0300_R056_T10UEA_20210629T215319")
+	b8_2 = img2.load_single_band("R10m", "B08") / 10000 * 2.3
+	b4_2 = img2.load_single_band("R10m", "B04") / 10000 * 2.9
+	b3_2 = img2.load_single_band("R10m", "B03") / 10000 * 3.1
+	b2_2 = img2.load_single_band("R10m", "B02") / 10000 * 3.0
+
+	# Norms
+	ndvi_norm = MidpointNormalize(vmin=0, vmax=1, midpoint=0.5)
+	ndwi_norm = MidpointNormalize(vmin=-1, vmax=1, midpoint=0)
+
+	# RGB Figure
+	plt.figure(1)
+	plt.suptitle("RGB image (B4, B3, B2)")
+	plt.subplot(121)
+	plt.title("01/06/2021")
+	plt.imshow(np.dstack([b4_1, b3_1, b2_1]))
+	plt.xticks([])
+	plt.yticks([])
+
+	plt.subplot(122)
+	plt.title("29/06/2021")
+	plt.imshow(np.dstack([b4_2, b3_2, b2_2]))
+	plt.xticks([])
+	plt.yticks([])
+	# FIR Figure
+	plt.figure(2)
+	plt.suptitle("FIR image (B8, B4, B3)")
+	plt.subplot(121)
+	plt.title("01/06/2021")
+	plt.imshow(np.dstack([b8_1, b4_1, b3_1]))
+	plt.xticks([])
+	plt.yticks([])
+
+	plt.subplot(122)
+	plt.title("29/06/2021")
+	plt.imshow(np.dstack([b8_2, b4_2, b3_2]))
+	plt.xticks([])
+	plt.yticks([])
+
+	# NDVI Figure
+	plt.figure(3)
+	plt.suptitle("NDVI (water & snow mask applied)")
+	plt.subplot(121)
+	plt.title("01/06/2021")
+	ndvi1 = img1.get_NDVI("R10m")
+	wm = mask.water_mask(img1, "R10m", threshold=0.02)
+	ndvi1[wm] = np.nan
+	plt.imshow(ndvi1, cmap="RdYlGn", norm=ndvi_norm)
+	plt.xticks([])
+	plt.yticks([])
+	
+	plt.subplot(122)
+	plt.title("29/06/2021")
+	ndvi2 = img2.get_NDVI("R10m")
+	wm = mask.water_mask(img2, "R10m", threshold=0.02)
+	ndvi2[wm] = np.nan
+	plt.imshow(ndvi2, cmap="RdYlGn", norm=ndvi_norm)
+	plt.xticks([])
+	plt.yticks([])
+
+	# NDWI Figure
+	plt.figure(4)
+	plt.suptitle("Soil Moisture Index (water & snow mask applied)")
+	plt.subplot(121)
+	plt.title("01/06/2021")
+	ndwi1 = img1.get_NDWIveg("R20m")
+	wm = mask.water_mask(img1, "R20m", threshold=0.02)
+	ndwi1[wm] = np.nan
+	plt.imshow(ndwi1, cmap="jet_r", norm=ndwi_norm)
+	plt.xticks([])
+	plt.yticks([])
+	
+	plt.subplot(122)
+	plt.title("29/06/2021")
+	ndwi2 = img2.get_NDWIveg("R20m")
+	wm = mask.water_mask(img2, "R20m", threshold=0.02)
+	ndwi2[wm] = np.nan
+	plt.imshow(ndwi2, cmap="jet_r", norm=ndwi_norm)
+	plt.xticks([])
+	plt.yticks([])
+
+	# NDVI pixels distribution
+	plt.figure(5)
+	plt.suptitle("Soil Moisture Index pixels distribution")
+	s1 = ndwi1.reshape(1, -1)[0]
+	s2 = ndwi2.reshape(1, -1)[0]
+	plt.hist(s1, bins=500, histtype='step', label="01/06/2021")
+	plt.hist(s2, bins=500, histtype='step', label="29/06/2021")
+	plt.xlabel("Soil Moisture Index")
+	plt.ylabel("Number of pixels")
+	plt.legend()
+
+	plt.show()
+
+
 if __name__ == '__main__':
-	main()
+	lytton_analysis()

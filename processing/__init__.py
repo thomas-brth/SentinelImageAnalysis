@@ -9,6 +9,7 @@ import numpy as np
 from scipy import interpolate
 from skimage import morphology
 import cv2 as cv
+from matplotlib import colors
 
 ## Custom imports
 from mask import water_mask
@@ -20,6 +21,18 @@ from mask import water_mask
 #############
 ## Classes ##
 #############
+
+class MidpointNormalize(colors.Normalize):
+	"""
+	Useful object enbling to normalize colorbar with a chosen midpoint.
+	"""
+	def __init__(self, vmin=None, vmax=None, midpoint=None, clip=False):
+		self.midpoint = midpoint
+		colors.Normalize.__init__(self, vmin, vmax, clip)
+	
+	def __call__(self, value, clip=None):
+		x, y = [self.vmin, self.midpoint, self.vmax], [0,0.5,1]
+		return np.ma.masked_array(np.interp(value, x, y))
 
 ###############
 ## Functions ##

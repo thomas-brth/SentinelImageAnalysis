@@ -685,7 +685,7 @@ def check_image_filename(filename):
 	return not ((filename == "") or (filename[len(filename)-4:len(filename)] != ".png") or (os.listdir(Image.IMAGES_PATH).__contains__(filename)))
 
 def main():
-	q = Query("Nice.json", (date(2021, 5, 20), date(2021, 5, 21)), 20)
+	q = Query("Lytton.json", (date(2021, 6, 25), date(2021, 7, 2)), 30)
 	q.process(1, "day")
 
 
