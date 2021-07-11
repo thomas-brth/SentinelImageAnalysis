@@ -80,7 +80,7 @@ class Query():
 	LATER = 2
 	DATESTEPS = ["day","week","month"]
 
-	def __init__(self, geojson, date_range, cloudcoverpercentage):
+	def __init__(self, geojson : str, date_range : tuple, cloudcoverpercentage : int):
 		self.api = self.connect()
 		self.geojson = os.path.normpath(os.getcwd() + os.sep + "GeoJSON" + os.sep + geojson)
 		self.date_range = date_range
@@ -129,7 +129,7 @@ class Query():
 						 		  )
 		self.q_dataframe = self.api.to_dataframe(products)
 
-	def extend_date_range(self,mode,step):
+	def extend_date_range(self, mode, step):
 		"""
 		2 modes available:
 			- mode = Query.SOONER, i.e. 1, date_from is set 
@@ -172,7 +172,7 @@ class Query():
 			self.query_from_json()
 		return self.q_dataframe.head(1).index[0], self.q_dataframe.head(1)["cloudcoverpercentage"]
 
-	def download_item(self, name):
+	def download_item(self, name : str):
 		"""
 		Download a single item from the query.
 		"""
@@ -180,7 +180,7 @@ class Query():
 		meta = self.api.download(name, directory_path=directory)
 		return meta
 
-	def unzip_data(self, meta):
+	def unzip_data(self, meta : dict):
 		"""
 		Unzip downloaded data.
 		"""
@@ -231,7 +231,7 @@ class ImageWriter():
 	ARCHIVES_PATH = os.path.join(WORKING_PATH, "Archives")
 	IMAGES_PATH = os.path.join(WORKING_PATH, "Images")
 
-	def __init__(self, meta, geojson):
+	def __init__(self, meta : dict, geojson : str):
 		self.meta = meta
 		self.geojson = geojson
 		print(f"Current working directory: {self.WORKING_PATH}", flush=True)
@@ -304,7 +304,7 @@ class ImageWriter():
 			self.write_res(data_path, res, dir_path)
 		print("## Image writen ##", flush=True)
 
-	def write_res(self, data_path, res, dir_path):
+	def write_res(self, data_path : str, res : str, dir_path : str):
 		"""
 		Write data for a given resolution.
 		"""
@@ -375,7 +375,7 @@ class Image():
 	ARCHIVES_PATH = os.path.join(WORKING_PATH, "Archives")
 	IMAGES_PATH = os.path.join(WORKING_PATH, "Images")
 
-	def __init__(self, name):
+	def __init__(self, name : str):
 		# Files attributes
 		self.name = name # Name of the .tif file
 		self.folder_path = os.path.join(self.ARCHIVES_PATH, name) # Folder path where files are stored for each resolution
@@ -393,7 +393,7 @@ class Image():
 		"""
 		return self.meta["date"]
 
-	def load_info(self, res):
+	def load_info(self, res : str):
 		"""
 		Load band metadata for a given resolution.
 		"""
@@ -422,18 +422,18 @@ class Image():
 													)
 				file.close()
 
-	def load_image_indexes(self, path, filename, indexes):
+	def load_image_indices(self, path, filename, indices):
 		"""
-		Load the image file and return the array given by: (indexes[0]-indexes[1])/(indexes[0]+indexes[1]).
+		Load the image file and return the array given by: (indices[0]-indices[1])/(indices[0]+indices[1]).
 
-		"indexes" is a list containing names of the bands used to calculate the index.
+		"indices" is a list containing names of the bands used to calculate the index.
 		"""
-		if len(indexes) != 2:
+		if len(indices) != 2:
 			print("## Error. Wrong band combination.", flush=True)
 		else:
 			with rio.open(os.path.join(path, filename), 'r') as file:
-				arr1 = crop_2D(file.read(indexes[0]))
-				arr2 = crop_2D(file.read(indexes[1]))
+				arr1 = crop_2D(file.read(indices[0]))
+				arr2 = crop_2D(file.read(indices[1]))
 				self.image = (arr1.astype("float32")-arr2.astype("float32"))/(arr1+arr2)
 				file.close()
 
@@ -573,7 +573,7 @@ class Image():
 			self.normalize_image()
 			return self.image
 
-	def get_NDVI(self,res):
+	def get_NDVI(self, res):
 		"""
 		Normalized Difference Vegetation Index.
 		Compute the NDVI as an array and return it.
@@ -582,10 +582,10 @@ class Image():
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
-			indexes = [b_info["bands"]["B08"],b_info["bands"]["B04"]]
+			indices = [b_info["bands"]["B08"],b_info["bands"]["B04"]]
 		else:
-			indexes = [b_info["bands"]["B8A"],b_info["bands"]["B04"]]
-		self.load_image_indexes(res_path, filename, indexes)
+			indices = [b_info["bands"]["B8A"],b_info["bands"]["B04"]]
+		self.load_image_indices(res_path, filename, indices)
 		return self.image
 
 	def get_NDWIveg(self,res):
@@ -599,8 +599,8 @@ class Image():
 		if res == "R10m":
 			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
 		else:
-			indexes = [b_info["bands"]["B8A"], b_info["bands"]["B12"]]
-			self.load_image_indexes(res_path, filename, indexes)
+			indices = [b_info["bands"]["B8A"], b_info["bands"]["B12"]]
+			self.load_image_indices(res_path, filename, indices)
 			return self.image
 
 	def get_NDWIwb(self, res):
@@ -612,10 +612,10 @@ class Image():
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
-			indexes = [b_info["bands"]["B03"], b_info["bands"]["B08"]]
+			indices = [b_info["bands"]["B03"], b_info["bands"]["B08"]]
 		else:
-			indexes = [b_info["bands"]["B03"], b_info["bands"]["B8A"]]
-		self.load_image_indexes(res_path, filename, indexes)
+			indices = [b_info["bands"]["B03"], b_info["bands"]["B8A"]]
+		self.load_image_indices(res_path, filename, indices)
 		return self.image
 
 	def is_loaded(self):
@@ -661,7 +661,7 @@ class Image():
 				tab[~np.isfinite(tab)] = 0
 				self.image = tab.astype("uint16")
 
-	def save(self, filename : str):
+	def save(self, filename : str, colormap : int = cv.COLORMAP_MAGMA):
 		"""
 		Save the current image into a .png file.
 		"""
@@ -670,7 +670,11 @@ class Image():
 		else:
 			print("Saving image...", flush=True)
 			if check_image_filename(filename):
-				cv.imwrite(os.path.join(self.IMAGES_PATH, filename), self.image)
+				if self.image.ndim == 3:
+					cv.imwrite(os.path.join(self.IMAGES_PATH, filename), self.image.astype("uint8"))
+				else:
+					self.image *= 255
+					cv.imwrite(os.path.join(self.IMAGES_PATH, filename), cv.applyColorMap(self.image.astype("uint8"), colormap))
 			else:
 				print("Image filename not valid!", flush=True)
 
@@ -682,10 +686,10 @@ def check_image_filename(filename):
 	"""
 	Return True if filename needs to be changed.
 	"""
-	return not ((filename == "") or (filename[len(filename)-4:len(filename)] != ".png") or (os.listdir(Image.IMAGES_PATH).__contains__(filename)))
+	return not ((filename == "") or ((filename[len(filename)-4:len(filename)] != ".png") and (filename[len(filename)-4:len(filename)] != ".jpg")) or (os.listdir(Image.IMAGES_PATH).__contains__(filename)))
 
 def main():
-	q = Query("Lytton.json", (date(2021, 6, 25), date(2021, 7, 2)), 30)
+	q = Query("Lytton.json", (date(2021, 7, 4), date(2021, 7, 5)), 50)
 	q.process(1, "day")
 
 

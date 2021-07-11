@@ -231,7 +231,7 @@ def lytton_analysis():
 
 	# NDWI Figure
 	plt.figure(4)
-	plt.suptitle("Soil Moisture Index (water & snow mask applied)")
+	plt.suptitle("NDMI (Normalized Difference Moisture Index, water & snow mask applied)")
 	plt.subplot(121)
 	plt.title("01/06/2021")
 	ndwi1 = img1.get_NDWIveg("R20m")
@@ -252,17 +252,70 @@ def lytton_analysis():
 
 	# NDVI pixels distribution
 	plt.figure(5)
-	plt.suptitle("Soil Moisture Index pixels distribution")
+	plt.suptitle("NDMI pixels distribution")
 	s1 = ndwi1.reshape(1, -1)[0]
 	s2 = ndwi2.reshape(1, -1)[0]
 	plt.hist(s1, bins=500, histtype='step', label="01/06/2021")
 	plt.hist(s2, bins=500, histtype='step', label="29/06/2021")
-	plt.xlabel("Soil Moisture Index")
+	plt.xlabel("NDMI")
 	plt.ylabel("Number of pixels")
 	plt.legend()
 
 	plt.show()
 
+def lytton_fire():
+	img = Image("S2A_MSIL2A_20210704T190921_N0301_R056_T10UEA_20210704T233134")
+	b8 = img.load_single_band("R10m", "B08") / 10000 * 2.3
+	b4 = img.load_single_band("R10m", "B04") / 10000 * 2.9
+	b3 = img.load_single_band("R10m", "B03") / 10000 * 3.1
+	b2 = img.load_single_band("R10m", "B02") / 10000 * 3.0
+	rgb = np.dstack((b4, b3, b2))
+	fir = np.dstack((b8, b4, b3))
+	norm = MidpointNormalize(vmin=-1, vmax=1, midpoint=0)
+
+	plt.figure(1)
+	plt.title("SWIR1 image (B11, B8A, B2)")
+	plt.text(20, 20, "Lytton, 04/07/2021, Sentinel-2 L2A Image", color="white")
+	plt.imshow(img.get_Agriculture("R20m", 0.01, 0.85))
+	plt.xticks([])
+	plt.yticks([])
+
+	plt.figure(2)
+	plt.title("FIR image (B8, B4, B3)")
+	plt.text(20, 20, "Lytton, 04/07/2021, Sentinel-2 L2A Image", color="white")
+	plt.imshow(fir)
+	plt.xticks([])
+	plt.yticks([])
+
+	plt.figure(3)
+	plt.title("NDVI")
+	plt.text(20, 20, "Lytton, 04/07/2021, Sentinel-2 L2A Image", color="black")
+	ndvi = img.get_NDVI("R10m")
+	plt.imshow(ndvi, cmap="RdYlGn")
+	plt.xticks([])
+	plt.yticks([])
+	plt.colorbar(norm=norm)
+
+	plt.figure(4)
+	plt.title("NDMI")
+	plt.text(20, 20, "Lytton, 04/07/2021, Sentinel-2 L2A Image", color="black")
+	ndmi = img.get_NDWIveg("R20m")
+	plt.imshow(ndmi, cmap="jet_r")
+	plt.xticks([])
+	plt.yticks([])
+	plt.colorbar(norm=norm)
+
+	plt.figure(5)
+	plt.title("BAI")
+	plt.text(20, 20, "Lytton, 04/07/2021, Sentinel-2 L2A Image", color="black")
+	bai = (b8 - b3) / (b8 + b3)
+	plt.imshow(bai, cmap="RdYlGn")
+	plt.xticks([])
+	plt.yticks([])
+	plt.colorbar(norm=norm)
+
+	plt.show()
+
 
 if __name__ == '__main__':
-	lytton_analysis()
+	lytton_fire()
