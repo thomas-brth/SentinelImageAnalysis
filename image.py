@@ -385,13 +385,24 @@ class Image():
 
 		# Image attributes
 		self.image = None # Array with shape (x, y, 3) if it's a 3 band combination or (x, y) if it's a computed index
-		self.is_normalized = False
+		self.pproc = {
+			"crop" : False,
+			"stretch" : True,
+			"pLow" : 0.05,
+			"pHigh" : 0.85,
+			"normalize": True
+			}
 
-	def get_date(self):
+	@property
+	def date(self):
 		"""
-		Return the date when image was shot as a String.
+		Return the date when data was acquired.
 		"""
 		return self.meta["date"]
+
+	#####################
+	## Generic methods ##
+	#####################
 
 	def load_info(self, res : str):
 		"""
@@ -403,263 +414,38 @@ class Image():
 			foo.close()
 		return res_path, b_info
 
-	def load_image_bands(self, path, filename, bands):
-		"""
-		Load a 3-band image.
-
-		"bands" is a list representing the band combination of the image. 
-		"""
-		if len(bands) != 3:
-			print("## Error. Wrong band combination.", flush=True)
-		else:
-			with rio.open(os.path.join(path, filename), 'r') as file:
-				self.image =  plot.reshape_as_image(
-													[
-													crop_2D(file.read(bands[0])),
-													crop_2D(file.read(bands[1])),
-													crop_2D(file.read(bands[2]))
-													]
-													)
-				file.close()
-
-	def load_image_indices(self, path, filename, indices):
-		"""
-		Load the image file and return the array given by: (indices[0]-indices[1])/(indices[0]+indices[1]).
-
-		"indices" is a list containing names of the bands used to calculate the index.
-		"""
-		if len(indices) != 2:
-			print("## Error. Wrong band combination.", flush=True)
-		else:
-			with rio.open(os.path.join(path, filename), 'r') as file:
-				arr1 = crop_2D(file.read(indices[0]))
-				arr2 = crop_2D(file.read(indices[1]))
-				self.image = (arr1.astype("float32")-arr2.astype("float32"))/(arr1+arr2)
-				file.close()
-
-	def load_single_band(self, res, band):
-		"""
-		Open the image file and return an array containing data from one single band.
-
-		The purpose of this function is to extract data from one specific band, without any normalization applied.
-		"""
-		res_path, b_info = self.load_info(res)
-		filename = b_info["filename"]
-		if not b_info["bands"].keys().__contains__(band):
-			print(f"Band {band} not available for this resolution.", flush=True)
-		else:
-			with rio.open(os.path.join(res_path, filename), 'r') as file:
-				self.image = crop_2D(file.read(b_info["bands"][band]))
-				file.close()
-		return self.image
-
-	def get_SCL(self, res):
-		"""
-		Get the scene classification image, as proocessed by Sentinel L2A SC Algorithm.
-		"""
-		if res == "R10m":
-			# Get 20m resolution and simply double the number of grid points. 
-			scl = self.load_single_band(res="R20m", band="SCL")
-			n, m = scl.shape
-			new_scl = np.zeros((n * 2, m * 2))
-			for i in range(n):
-				for j in range(m):
-					new_scl[i * 2, j * 2] = scl[i, j]
-					new_scl[i * 2 + 1, j * 2] = scl[i, j]
-					new_scl[i * 2, j * 2 + 1] = scl[i, j]
-					new_scl[i * 2 + 1, j * 2 + 1] = scl[i, j]
-			self.image = new_scl
-		else:
-			self.load_single_band(res=res, band="SCL")
-		return self.image
-
-	def get_RGB(self, res, pLow, pHigh):
-		"""
-		True Color Image.
-		Get the Red-Green-Blue band combination image and return it.
-		
-		"pLow" and "pHigh" enable to change the exposure of the image.
-		"""
-		res_path, b_info = self.load_info(res)
-		filename = b_info["filename"]
-		bands = [b_info["bands"]["B04"], b_info["bands"]["B03"], b_info["bands"]["B02"]]
-		self.load_image_bands(res_path, filename, bands)
-		self.linearStretch(pLow, pHigh)
-		self.normalize_image()
-		return self.image
-
-	def get_FIR(self, res, pLow, pHigh):
-		"""
-		False-Infrared Color Image.
-		Get the NIR-Red-Green band combination image and return it.
-		Healthy vegetation is seen bright red, clear water is seen dark blue... 
-
-		"pLow" and "pHigh" enable to change the exposure of the image.
-		"""
-		res_path, b_info = self.load_info(res)
-		filename = b_info["filename"]
-		if res == "R10m":
-			bands = [b_info["bands"]["B08"], b_info["bands"]["B04"], b_info["bands"]["B03"]]
-		else:
-			bands = [b_info["bands"]["B8A"], b_info["bands"]["B04"], b_info["bands"]["B03"]]
-		self.load_image_bands(res_path, filename, bands)
-		self.linearStretch(pLow, pHigh)
-		self.normalize_image()
-		return self.image
-	
-	def get_Agriculture(self, res, pLow, pHigh):
-		res_path, b_info = self.load_info(res)
-		filename = b_info["filename"]
-		if res == "R10m":
-			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
-		else:
-			bands = [b_info["bands"]["B11"], b_info["bands"]["B8A"], b_info["bands"]["B02"]]
-			self.load_image_bands(res_path, filename, bands)
-			self.linearStretch(pLow,pHigh)
-			self.normalize_image()
-			return self.image
-
-	def get_FCUrban(self, res, pLow, pHigh):
-		res_path, b_info = self.load_info(res)
-		filename = b_info["filename"]
-		if res == "R10m":
-			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
-		else:
-			bands = [b_info["bands"]["B12"], b_info["bands"]["B11"], b_info["bands"]["B04"]]
-			self.load_image_bands(res_path, filename, bands)
-			self.linearStretch(pLow, pHigh)
-			self.normalize_image()
-			return self.image
-
-	def get_Geology(self, res, pLow, pHigh):
-		res_path, b_info = self.load_info(res)
-		filename = b_info["filename"]
-		if res == "R10m":
-			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
-		else:
-			bands = [b_info["bands"]["B12"], b_info["bands"]["B11"], b_info["bands"]["B02"]]
-			self.load_image_bands(res_path, filename, bands)
-			self.linearStretch(pLow, pHigh)
-			self.normalize_image()
-			return self.image
-
-	def get_HVeg(self, res, pLow, pHigh):
-		res_path, b_info = self.load_info(res)
-		filename = b_info["filename"]
-		if res == "R10m":
-			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
-		else:
-			bands = [b_info["bands"]["B8A"],b_info["bands"]["B11"],b_info["bands"]["B02"]]
-			self.load_image_bands(res_path, filename, bands)
-			self.linearStretch(pLow, pHigh)
-			self.normalize_image()
-			return self.image
-
-	def get_Coastal(self, res, pLow, pHigh):
-		"""
-		Coastal RGB-like Color Image.
-		Get an image close to the RGB band combination, but improved for coastal areas.
-
-		"pLow" and "pHigh" enable to change the exposure of the image.
-		"""
-		res_path, b_info = self.load_info(res)
-		filename = b_info["filename"]
-		if (res == "R10m" or res == "R20m"):
-			print("## Image not available for this resolution. Please choose 'R60m' resolution. ##", flush=True)
-		else:
-			bands = [b_info["bands"]["B04"], b_info["bands"]["B03"], b_info["bands"]["B01"]]
-			self.load_image_bands(res_path, filename, bands)
-			self.linearStretch(pLow, pHigh)
-			self.normalize_image()
-			return self.image
-
-	def get_NDVI(self, res):
-		"""
-		Normalized Difference Vegetation Index.
-		Compute the NDVI as an array and return it.
-		Useful to monitor droughts, urban expansion, land use in general.
-		"""
-		res_path, b_info = self.load_info(res)
-		filename = b_info["filename"]
-		if res == "R10m":
-			indices = [b_info["bands"]["B08"],b_info["bands"]["B04"]]
-		else:
-			indices = [b_info["bands"]["B8A"],b_info["bands"]["B04"]]
-		self.load_image_indices(res_path, filename, indices)
-		return self.image
-
-	def get_NDWIveg(self,res):
-		"""
-		Normalized Difference Water Index - Vegetation.
-		Compute the NDWIveg as an array and return it.
-		Display the difference of water content in vegetation.
-		"""
-		res_path, b_info = self.load_info(res)
-		filename = b_info["filename"]
-		if res == "R10m":
-			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
-		else:
-			indices = [b_info["bands"]["B8A"], b_info["bands"]["B12"]]
-			self.load_image_indices(res_path, filename, indices)
-			return self.image
-
-	def get_NDWIwb(self, res):
-		"""
-		Normalized Difference Water Index - Water Bodies.
-		Compute the NDWIwb as an array and return it.
-		Useful to identify water.
-		"""
-		res_path, b_info = self.load_info(res)
-		filename = b_info["filename"]
-		if res == "R10m":
-			indices = [b_info["bands"]["B03"], b_info["bands"]["B08"]]
-		else:
-			indices = [b_info["bands"]["B03"], b_info["bands"]["B8A"]]
-		self.load_image_indices(res_path, filename, indices)
-		return self.image
-
 	def is_loaded(self):
 		"""
 		Check if current image has been loaded. Return False if not.
 		"""
 		return (self.image != None).any()
 
-	def linearStretch(self, pLow, pHigh):
+	def linear_stretch(self):
 		"""
-		Apply linear stretching to the current image. Thus, it enlightens the image.
+		Apply linear stretching to the current image.
 		"""
+		print("## Proceeding to stretching. ##")
+		tmp_image = []
+		for i in range(self.image.shape[np.argmin(self.image.shape)]):
+			band = self.image[:,:,i]
+			iMin, iMax = np.percentile(band[~np.isnan(band)], (self.pproc["pLow"], 100-self.pproc["pHigh"]))
+			band_rescaled = exposure.rescale_intensity(band, in_range=(iMin, iMax))
+			tmp_image.append(band_rescaled)
+		img_rescale = np.dstack(tmp_image)
 
-		if not self.is_loaded:
-			print("## Error: no image previously extracted. Could not proceed to stretching. ##")
-		else:
-			print("## Proceeding to stretching. ##")
-			tmp_image = []
-			for i in range(self.image.shape[np.argmin(self.image.shape)]):
-				band = self.image[:,:,i]
-				iMin, iMax = np.percentile(band[~np.isnan(band)], (pLow, 100-pHigh))
-				band_rescaled = exposure.rescale_intensity(band, in_range=(iMin, iMax))
-				tmp_image.append(band_rescaled)
-			img_rescale = np.dstack(tmp_image)
+		self.image = img_rescale
 
-			self.image = img_rescale
-
-	def normalize_image(self):
+	def _normalize_image(self):
 		"""
 		Normalize the current image, set values between 0 and 255 for every pixel.
 		"""
-		if not self.is_loaded():
-			print("## Error: no image previously extracted. Could not proceed to normalization. ##", flush=True)
-		else:
-			if self.is_normalized:
-				print("## Image already normalized. ##", flush=True)
-			else:
-				print("## Proceeding to normalization. ##", flush=True)
-				tab = self.image
-				tab = 255 * ((tab-tab.min())/(tab.max()-tab.min()))
-				tab[tab < 0] = 0
-				tab[tab > 255] = 255
-				tab[~np.isfinite(tab)] = 0
-				self.image = tab.astype("uint16")
+		print("## Proceeding to normalization. ##", flush=True)
+		arr = self.image
+		arr = 255 * ((arr - arr.min()) / (arr.max() - arr.min()))
+		arr[arr < 0] = 0
+		arr[arr > 255] = 255
+		arr[~np.isfinite(arr)] = 0
+		self.image = arr.astype("uint16")
 
 	def save(self, filename : str, colormap : int = cv.COLORMAP_MAGMA):
 		"""
@@ -677,6 +463,241 @@ class Image():
 					cv.imwrite(os.path.join(self.IMAGES_PATH, filename), cv.applyColorMap(self.image.astype("uint8"), colormap))
 			else:
 				print("Image filename not valid!", flush=True)
+
+	def load_image_bands(self, path : str, filename : str, bands : list):
+		"""
+		Load a 3-band image.
+
+		"bands" is a list representing the band combination of the image. 
+		"""
+		if len(bands) != 3:
+			print("## Error. Wrong band combination.", flush=True)
+		else:
+			with rio.open(os.path.join(path, filename), 'r') as file:
+				self.image =  plot.reshape_as_image(
+													[
+													file.read(bands[0]),
+													file.read(bands[1]),
+													file.read(bands[2])
+													]
+													)
+				file.close()
+			# Post-processing applied to the image
+			if self.pproc["crop"]:
+				self.image = crop_3D(self.image)
+			if self.pproc["stretch"]:
+				self.linear_stretch()
+			if self.pproc["normalize"]:
+				self._normalize_image()
+
+	def load_single_band(self, res : str, band : str, factor : float = 1):
+		"""
+		Open the image file and return an array containing data from one single band.
+
+		A factor can be applied.
+		"""
+		res_path, b_info = self.load_info(res)
+		filename = b_info["filename"]
+		if not b_info["bands"].keys().__contains__(band):
+			print(f"Band {band} not available for this resolution.", flush=True)
+		else:
+			with rio.open(os.path.join(res_path, filename), 'r') as file:
+				self.image = file.read(b_info["bands"][band]) * factor
+				file.close()
+
+			# Post-processing applied to the band
+			if self.pproc["crop"]:
+				self.image = crop_2D(self.image)
+
+		return self.image
+
+	def compute_NDI(self, res : str, band_1 : str, band_2 : str):
+		"""
+		Compute a Normalize Difference Index, i.e. the difference between 2 bands, divided by their sum.
+		Values varies between -1 and 1
+		"""
+		res_path, b_info = self.load_info(res)
+		filename = b_info["filename"]
+		if not b_info["bands"].keys().__contains__(band_1) or not b_info["bands"].keys().__contains__(band_2):
+			print(f"Bands not available for this resolution.", flush=True)
+		else:
+			with rio.open(os.path.join(res_path, filename), 'r') as file:
+				if self.pproc['crop']:
+					arr_1 = crop_2D(file.read(b_info["bands"][band_1]))
+					arr_2 = crop_2D(file.read(b_info["bands"][band_2]))
+				else:
+					arr_1 = file.read(b_info["bands"][band_1])
+					arr_2 = file.read(b_info["bands"][band_2])
+				self.image = (arr_1.astype("float32") - arr_2.astype("float32")) / (arr_1 + arr_2)
+				file.close()
+
+	def compute_ratio(self, res : str, band_1 : str, band_2 : str):
+		"""
+		Compute a simple ratio between 2 bands.
+		Non-finite values are replaced by zeros.
+		"""
+		res_path, b_info = self.load_info(res)
+		filename = b_info["filename"]
+		if not b_info["bands"].keys().__contains__(band_1) or not b_info["bands"].keys().__contains__(band_2):
+			print(f"Bands not available for this resolution.", flush=True)
+		else:
+			with rio.open(os.path.join(res_path, filename), 'r') as file:
+				if self.pproc['crop']:
+					arr_1 = crop_2D(file.read(b_info["bands"][band_1]))
+					arr_2 = crop_2D(file.read(b_info["bands"][band_2]))
+				else:
+					arr_1 = file.read(b_info["bands"][band_1])
+					arr_2 = file.read(b_info["bands"][band_2])
+				self.image = arr_1.astype("float32") / arr_2.astype("float32")
+				self.image[~np.isfinite(self.image)] = 0
+				file.close()
+
+	#####################
+	## Special methods ##
+	#####################
+
+	def get_SCL(self, res : str, crop : bool = False):
+		"""
+		Get the scene classification image, as processed by Sentinel L2A SC Algorithm.
+		"""
+		if res == "R10m":
+			# Get 20m resolution and simply double the number of grid points. 
+			scl = self.load_single_band(res="R20m", band="SCL")
+			n, m = scl.shape
+			new_scl = np.zeros((n * 2, m * 2))
+			for i in range(n):
+				for j in range(m):
+					new_scl[i * 2, j * 2] = scl[i, j]
+					new_scl[i * 2 + 1, j * 2] = scl[i, j]
+					new_scl[i * 2, j * 2 + 1] = scl[i, j]
+					new_scl[i * 2 + 1, j * 2 + 1] = scl[i, j]
+			self.image = new_scl
+		else:
+			self.load_single_band(res=res, band="SCL")
+		return self.image
+
+	def get_RGB(self, res : str):
+		"""
+		True Color Image.
+		Get the Red-Green-Blue band combination image and return it.
+		"""
+		res_path, b_info = self.load_info(res)
+		filename = b_info["filename"]
+		bands = [b_info["bands"]["B04"], b_info["bands"]["B03"], b_info["bands"]["B02"]]
+		self.load_image_bands(res_path, filename, bands)
+		return self.image
+
+	def get_FIR(self, res : str):
+		"""
+		False-Infrared Color Image.
+		Get the NIR-Red-Green band combination image and return it.
+		Healthy vegetation is seen bright red, clear water is seen dark blue... 
+		"""
+		res_path, b_info = self.load_info(res)
+		filename = b_info["filename"]
+		if res == "R10m":
+			bands = [b_info["bands"]["B08"], b_info["bands"]["B04"], b_info["bands"]["B03"]]
+		else:
+			bands = [b_info["bands"]["B8A"], b_info["bands"]["B04"], b_info["bands"]["B03"]]
+		self.load_image_bands(res_path, filename, bands)
+		return self.image
+	
+	def get_Agriculture(self, res : str):
+		"""
+		"""
+		res_path, b_info = self.load_info(res)
+		filename = b_info["filename"]
+		if res == "R10m":
+			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
+		else:
+			bands = [b_info["bands"]["B11"], b_info["bands"]["B8A"], b_info["bands"]["B02"]]
+			self.load_image_bands(res_path, filename, bands)
+			return self.image
+
+	def get_FCUrban(self, res : str):
+		"""
+		"""
+		res_path, b_info = self.load_info(res)
+		filename = b_info["filename"]
+		if res == "R10m":
+			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
+		else:
+			bands = [b_info["bands"]["B12"], b_info["bands"]["B11"], b_info["bands"]["B04"]]
+			self.load_image_bands(res_path, filename, bands)
+			return self.image
+
+	def get_Geology(self, res : str):
+		"""
+		"""
+		res_path, b_info = self.load_info(res)
+		filename = b_info["filename"]
+		if res == "R10m":
+			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
+		else:
+			bands = [b_info["bands"]["B12"], b_info["bands"]["B11"], b_info["bands"]["B02"]]
+			self.load_image_bands(res_path, filename, bands)
+			return self.image
+
+	def get_HVeg(self, res : str):
+		"""
+		"""
+		res_path, b_info = self.load_info(res)
+		filename = b_info["filename"]
+		if res == "R10m":
+			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
+		else:
+			bands = [b_info["bands"]["B8A"], b_info["bands"]["B11"], b_info["bands"]["B02"]]
+			self.load_image_bands(res_path, filename, bands)
+			return self.image
+
+	def get_Coastal(self, res : str):
+		"""
+		Coastal RGB-like Color Image.
+		Get an image close to the RGB band combination, but improved for coastal areas.
+		"""
+		res_path, b_info = self.load_info(res)
+		filename = b_info["filename"]
+		if (res == "R10m" or res == "R20m"):
+			print("## Image not available for this resolution. Please choose 'R60m' resolution. ##", flush=True)
+		else:
+			bands = [b_info["bands"]["B04"], b_info["bands"]["B03"], b_info["bands"]["B01"]]
+			self.load_image_bands(res_path, filename, bands)
+			return self.image
+
+	def get_NDVI(self, res : str):
+		"""
+		Normalized Difference Vegetation Index.
+		Compute the NDVI as an array and return it.
+		Useful to monitor droughts, urban expansion, land use in general.
+		"""
+		if res == "R10m":
+			self.compute_NDI(res=res, band_1="B08", band_2="B04")
+		else:
+			self.compute_NDI(res=res, band_1="B8A", band_2="B04")
+		return self.image
+
+	def get_NDWIveg(self, res : str):
+		"""
+		Normalized Difference Water Index - Vegetation.
+		Compute the NDWIveg as an array and return it.
+		Display the difference of water content in vegetation.
+		"""
+		if res == "R10m":
+			print("Bands not available for this resolution.", flush=True)
+		self.compute_NDI(res=res, band_1="B8A", band_2="B12")
+		return self.image
+
+	def get_NDWIwb(self, res : str):
+		"""
+		Normalized Difference Water Index - Water Bodies.
+		Compute the NDWIwb as an array and return it.
+		Useful to identify water.
+		"""
+		if res == "R10m":
+			self.compute_NDI(res=res, band_1="B03", band_2="B08")
+		else:
+			self.compute_NDI(res=res, band_1="B03", band_2="B8A")
+		return self.image
 
 ###############
 ## Functions ##
