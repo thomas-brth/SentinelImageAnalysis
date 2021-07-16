@@ -10,13 +10,14 @@ from sentinelsat import SentinelAPI, read_geojson, geojson_to_wkt #create and re
 ## General imports ##
 import os
 import sys
-sys.path.append("processing")
+sys.path.append("utils")
+sys.path.append("utils\\processing")
 import json # for metadata
 import zipfile # unzip collected data
 import numpy as np
 np.seterr(divide='ignore', invalid='ignore')
 
-## Rasterio imoprts ##
+## Rasterio imports ##
 import rasterio as rio # open and read images (.jp2, .tiff, .tif...)
 from rasterio import plot # used mainly for reshaphe_as_image() and reshape_as_raster() functions
 from rasterio import mask as msk # used to crop images
@@ -41,8 +42,11 @@ from skimage import exposure, morphology
 ## Environment import ##
 from dotenv import load_dotenv
 
+## Logger ##
+import logging
+
 ## Custom imports ##
-from processing import crop_2D, crop_3D
+from utils.processing import crop_2D, crop_3D
 
 ###############
 ## Constants ##
@@ -53,7 +57,6 @@ load_dotenv()
 USER = os.getenv('USER')
 PASSWORD = os.getenv('PASSWORD')
 URL = os.getenv('URL')
-sys.path.append("processing")
 
 #############
 ## Classes ##
@@ -232,9 +235,17 @@ class ImageWriter():
 	IMAGES_PATH = os.path.join(WORKING_PATH, "Images")
 
 	def __init__(self, meta : dict, geojson : str):
+		# Logger
+		self.logger = logging.getLogger("IMGWR LOG")
+		self.logger.setLevel(logging.DEBUG)
+		ch = logging.StreamHandler()
+		ch.setLevel(logging.DEBUG)
+		ch.setFormatter(logging.Formatter(fmt="%(asctime)s - %(name)s : %(levelname)s - %(message)s", datefmt="%m/%d/%Y %I:%M:%S"))
+		self.logger.addHandler(ch)
+
 		self.meta = meta
 		self.geojson = geojson
-		print(f"Current working directory: {self.WORKING_PATH}", flush=True)
+		self.logger.debug(f"Current working directory: {self.WORKING_PATH}")
 
 	def get_data_path(self):
 		"""
@@ -291,7 +302,7 @@ class ImageWriter():
 		with rio.open(dest_file, 'w', **out_meta) as dest:
 			dest.write(out_image)
 			dest.close()
-		print("## New cropped image created ##", flush=True)
+		self.logger.debug("New cropped image created.")
 
 	def write(self):
 		"""
@@ -302,7 +313,7 @@ class ImageWriter():
 		list_res = ["R10m","R20m","R60m"]
 		for res in list_res:
 			self.write_res(data_path, res, dir_path)
-		print("## Image writen ##", flush=True)
+		self.logger.debug("Image writen.")
 
 	def write_res(self, data_path : str, res : str, dir_path : str):
 		"""
@@ -327,7 +338,7 @@ class ImageWriter():
 				_bool = ((ftype != "AOT") and (ftype != "TCI") and (ftype != "WVP"))
 				if (_bool):
 					with rio.open(os.path.join(new_data_path, f),'r') as band:
-						print(f"## Writing {ftype} for resolution {res} in temporary file. ##", flush=True)
+						self.logger.debug(f"Writing {ftype} for resolution {res} in temporary file.")
 						temp.write(band.read(1).astype(_type), band_number)
 						info["bands"][ftype] = band_number
 						band_number += 1
@@ -352,35 +363,26 @@ class Image():
 		- image: np.array(), image stored as an array. None if no image has been loaded.
 	"""
 	
-	BANDS = {
-			"R10m": {"B02":"Blue", "B03":"Green", "B04":"Red", "B08":"NIR"},
-			"R20m": {"B02":"Blue", "B03":"Green", "B04":"Red", "B05":"Re1", "B06":"Re2", "B07":"Re3", "B11":"SWIR1", "B12":"SWIR2", "B8A":"NIRn"},
-			"R60m": {"B01":"Coastal aerosol", "B02":"Blue", "B03":"Green", "B04":"Red", "B05":"Re1", "B06":"Re2", "B07":"Re3", "B09":"Water vapor", "B11":"SWIR1", "B12":"SWIR2", "B8A":"NIRn"}
-	}
-	SCL_LABELS = {
-			0 : "NO_DATA",
-			1 : "SATURATED_OR_DEFECTIVE",
-			2 : "DARK_AREA_PIXELS",
-			3 : "CLOUD_SHADOWS",
-			4 : "VEGETATION",
-			5 : "NOT_VEGETATED",
-			6 : "WATER",
-			7 : "UNCLASSIFIED",
-			8 : "CLOUD_MEDIUM_PROBABILITY",
-			9 : "CLOUD_HIGH_PROBABILITY",
-			10 : "THIN_CIRRUS",
-			11 : "SNOW"
-	}
 	WORKING_PATH = os.path.dirname(__file__)
 	ARCHIVES_PATH = os.path.join(WORKING_PATH, "Archives")
 	IMAGES_PATH = os.path.join(WORKING_PATH, "Images")
 
 	def __init__(self, name : str):
+		# Logger
+		self.logger = logging.getLogger("IMG LOG")
+		self.logger.setLevel(logging.DEBUG)
+		ch = logging.StreamHandler()
+		ch.setLevel(logging.DEBUG)
+		ch.setFormatter(logging.Formatter(fmt="%(asctime)s - %(name)s : %(levelname)s - %(message)s", datefmt="%m/%d/%Y %I:%M:%S"))
+		self.logger.addHandler(ch)
+
 		# Files attributes
-		self.name = name # Name of the .tif file
-		self.folder_path = os.path.join(self.ARCHIVES_PATH, name) # Folder path where files are stored for each resolution
+		self.name = name # Name of the folder
+		self.folder_path = os.path.join(self.ARCHIVES_PATH, self.name) # Folder path where files are stored for each resolution
 		with open(os.path.join(self.folder_path, "meta.json"), 'r') as foo:
 			self.meta = json.load(foo) # Metadata
+			self.logger.debug(f"Image {self.name} loaded.")
+			self.logger.debug(f"Image acquired on {self.meta['date']}.")
 			foo.close()
 
 		# Image attributes
@@ -404,6 +406,12 @@ class Image():
 	## Generic methods ##
 	#####################
 
+	def set_pproc_settings(self, **kwargs):
+		"""
+		Update pre-processing settings.
+		"""
+		self.pproc.update(kwargs)
+
 	def load_info(self, res : str):
 		"""
 		Load band metadata for a given resolution.
@@ -424,7 +432,7 @@ class Image():
 		"""
 		Apply linear stretching to the current image.
 		"""
-		print("## Proceeding to stretching. ##")
+		self.logger.debug("Proceeding to linear stretching.")
 		tmp_image = []
 		for i in range(self.image.shape[np.argmin(self.image.shape)]):
 			band = self.image[:,:,i]
@@ -439,7 +447,7 @@ class Image():
 		"""
 		Normalize the current image, set values between 0 and 255 for every pixel.
 		"""
-		print("## Proceeding to normalization. ##", flush=True)
+		self.logger.debug("Proceeding to normalization.")
 		arr = self.image
 		arr = 255 * ((arr - arr.min()) / (arr.max() - arr.min()))
 		arr[arr < 0] = 0
@@ -452,9 +460,9 @@ class Image():
 		Save the current image into a .png file.
 		"""
 		if not self.is_loaded():
-			print("No image loaded.", flush=True)
+			self.logger.warning("No image loaded.")
 		else:
-			print("Saving image...", flush=True)
+			self.logger.debug("Saving image...")
 			if check_image_filename(filename):
 				if self.image.ndim == 3:
 					cv.imwrite(os.path.join(self.IMAGES_PATH, filename), self.image.astype("uint8"))
@@ -462,7 +470,7 @@ class Image():
 					self.image *= 255
 					cv.imwrite(os.path.join(self.IMAGES_PATH, filename), cv.applyColorMap(self.image.astype("uint8"), colormap))
 			else:
-				print("Image filename not valid!", flush=True)
+				self.logger.error("Image filename not valid!")
 
 	def load_image_bands(self, path : str, filename : str, bands : list):
 		"""
@@ -471,7 +479,7 @@ class Image():
 		"bands" is a list representing the band combination of the image. 
 		"""
 		if len(bands) != 3:
-			print("## Error. Wrong band combination.", flush=True)
+			self.logger.error("Not enough bands to load into an image.")
 		else:
 			with rio.open(os.path.join(path, filename), 'r') as file:
 				self.image =  plot.reshape_as_image(
@@ -499,7 +507,7 @@ class Image():
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
 		if not b_info["bands"].keys().__contains__(band):
-			print(f"Band {band} not available for this resolution.", flush=True)
+			self.logger.error(f"Band {band} not available for this resolution.")
 		else:
 			with rio.open(os.path.join(res_path, filename), 'r') as file:
 				self.image = file.read(b_info["bands"][band]) * factor
@@ -519,7 +527,7 @@ class Image():
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
 		if not b_info["bands"].keys().__contains__(band_1) or not b_info["bands"].keys().__contains__(band_2):
-			print(f"Bands not available for this resolution.", flush=True)
+			self.logger.error(f"Bands not available for this resolution.")
 		else:
 			with rio.open(os.path.join(res_path, filename), 'r') as file:
 				if self.pproc['crop']:
@@ -539,7 +547,7 @@ class Image():
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
 		if not b_info["bands"].keys().__contains__(band_1) or not b_info["bands"].keys().__contains__(band_2):
-			print(f"Bands not available for this resolution.", flush=True)
+			self.logger.error(f"Bands not available for this resolution.")
 		else:
 			with rio.open(os.path.join(res_path, filename), 'r') as file:
 				if self.pproc['crop']:
@@ -608,7 +616,7 @@ class Image():
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
-			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
+			self.logger.warning("Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions.")
 		else:
 			bands = [b_info["bands"]["B11"], b_info["bands"]["B8A"], b_info["bands"]["B02"]]
 			self.load_image_bands(res_path, filename, bands)
@@ -620,7 +628,7 @@ class Image():
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
-			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
+			self.logger.warning("Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions.")
 		else:
 			bands = [b_info["bands"]["B12"], b_info["bands"]["B11"], b_info["bands"]["B04"]]
 			self.load_image_bands(res_path, filename, bands)
@@ -632,7 +640,7 @@ class Image():
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
-			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
+			self.logger.warning("Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions.")
 		else:
 			bands = [b_info["bands"]["B12"], b_info["bands"]["B11"], b_info["bands"]["B02"]]
 			self.load_image_bands(res_path, filename, bands)
@@ -644,7 +652,7 @@ class Image():
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
-			print("## Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions. ##", flush=True)
+			self.logger.warning("Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions.")
 		else:
 			bands = [b_info["bands"]["B8A"], b_info["bands"]["B11"], b_info["bands"]["B02"]]
 			self.load_image_bands(res_path, filename, bands)
@@ -658,7 +666,7 @@ class Image():
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
 		if (res == "R10m" or res == "R20m"):
-			print("## Image not available for this resolution. Please choose 'R60m' resolution. ##", flush=True)
+			self.logger.warning("Image not available for this resolution. Please choose 'R60m' resolution.")
 		else:
 			bands = [b_info["bands"]["B04"], b_info["bands"]["B03"], b_info["bands"]["B01"]]
 			self.load_image_bands(res_path, filename, bands)
@@ -683,7 +691,7 @@ class Image():
 		Display the difference of water content in vegetation.
 		"""
 		if res == "R10m":
-			print("Bands not available for this resolution.", flush=True)
+			self.logger.warning("Bands not available for this resolution.")
 		self.compute_NDI(res=res, band_1="B8A", band_2="B12")
 		return self.image
 
@@ -712,7 +720,6 @@ def check_image_filename(filename):
 def main():
 	q = Query("Lytton.json", (date(2021, 7, 4), date(2021, 7, 5)), 50)
 	q.process(1, "day")
-
 
 if __name__ == '__main__':
 	main()

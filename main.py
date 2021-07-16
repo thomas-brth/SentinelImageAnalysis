@@ -9,11 +9,12 @@ from matplotlib import pyplot as plt
 import numpy as np
 import time
 import sys
-sys.path.append("processing")
+sys.path.append("utils")
+sys.path.append("utils\\processing")
 
 ## Custom imports ##
 from image import Image
-from processing import mask, cluster, crop_2D, crop_3D, water_spectral_analysis, interpolation_2d, sharpen, MidpointNormalize
+from utils.processing import mask, cluster, crop_2D, crop_3D, water_spectral_analysis, interpolation_2d, sharpen, MidpointNormalize
 
 ###############
 ## Constants ##
