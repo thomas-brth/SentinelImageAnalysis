@@ -22,7 +22,7 @@ def water_mask(image, res : str, threshold : float = 0.2, reversed : bool = Fals
 	"""
 	Return a mask based on NDWIwb index.
 	"""
-	ndwi = image.get_NDWIwb(res)
+	ndwi = image.get_NDMI(res=res)
 	mask = ndwi > threshold
 	if reversed:
 		return reverse(mask)

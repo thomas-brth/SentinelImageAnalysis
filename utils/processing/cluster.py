@@ -136,3 +136,5 @@ def main():
 
 if __name__ == '__main__':
 	main()
+else:
+	print(f"Module {__name__} imported.", flush=True)

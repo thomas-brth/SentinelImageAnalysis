@@ -31,7 +31,7 @@ class SCL_Labels(enum.Enum):
 	THIN_CIRRUS = 10
 	SNOW = 11
 
-class Bands(enum.Enum):
+class Band(enum.Enum):
 	"""
 	Sentinel-2 band enumeration.
 	It gives the name of each band, the resolutions for which it is available and its central wavelength in nm.
@@ -82,3 +82,5 @@ def main():
 
 if __name__ == '__main__':
 	main()
+else:
+	print(f"Module {__name__} imported.", flush=True)

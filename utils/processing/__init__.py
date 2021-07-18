@@ -111,10 +111,8 @@ def water_spectral_analysis(image, threshold : float = 0.2, reversed : bool = Fa
 	}
 	for band in bands.keys():
 		mask = water_mask(image=image, res=bands[band]['res'], threshold=threshold, reversed=reversed)
-		band_arr = image.load_single_band(res=bands[band]['res'], band=band) / 10000
+		band_arr = image.load_single_band(res=bands[band]['res'], band=band, factor=1/10000)
 		band_arr[band_arr > 1] = 1
-		print(band)
-		print(mask.shape, band_arr.shape)
 		bands[band]['mean'] = np.mean(band_arr[mask])
 		bands[band]['std'] = np.std(band_arr[mask])
 	return bands
@@ -124,3 +122,5 @@ def main():
 
 if __name__ == '__main__':
 	main()
+else:
+	print(f"Module {__name__} imported.", flush=True)

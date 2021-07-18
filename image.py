@@ -78,16 +78,21 @@ class Query():
 		- date_from: datetime.date(), low time boundary for the query
 		- date_to: datetime.date(), high time boundary for the query
 	"""
-	
-	SOONER = 1
-	LATER = 2
-	DATESTEPS = ["day","week","month"]
 
-	def __init__(self, geojson : str, date_range : tuple, cloudcoverpercentage : int):
+	def __init__(self, geojson : str, date_range : tuple, cloudcoverpercentage : int, name : str):
+		# Logger
+		self.logger = logging.getLogger("QUERY LOG")
+		self.logger.setLevel(logging.DEBUG)
+		ch = logging.StreamHandler()
+		ch.setLevel(logging.DEBUG)
+		ch.setFormatter(logging.Formatter(fmt="%(asctime)s - %(name)s : %(levelname)s - %(message)s", datefmt="%d/%m/%Y %I:%M:%S"))
+		self.logger.addHandler(ch)
+
 		self.api = self.connect()
 		self.geojson = os.path.normpath(os.getcwd() + os.sep + "GeoJSON" + os.sep + geojson)
 		self.date_range = date_range
 		self.cloudcoverpercentage = cloudcoverpercentage
+		self.name = name
 		self.q_dataframe = None
 
 	@property
@@ -134,6 +139,8 @@ class Query():
 
 	def extend_date_range(self, mode, step):
 		"""
+		TO BE CHANGED
+
 		2 modes available:
 			- mode = Query.SOONER, i.e. 1, date_from is set 
 			- mode = Query.LATER, i.e. 2, date_from is set 
@@ -163,24 +170,13 @@ class Query():
 			else:
 				mode = input("Choose a correct mode (1=SOONER, 2=LATER) : ")
 		print("Date range changed.", flush=True)
-		
-	def find_data(self, mode, step):
-		"""
-		Search for available and corresponding data. Return the id of the found tile with the best cloudcover percentage.
-		"""
-		self.query_from_json()
-		while (self.length < 1):
-			print("No product found. Retrying with a new date range.", flush=True)
-			self.extend_date_range(mode, step)
-			self.query_from_json()
-		return self.q_dataframe.head(1).index[0], self.q_dataframe.head(1)["cloudcoverpercentage"]
 
-	def download_item(self, name : str):
+	def download_item(self, item_name : str):
 		"""
 		Download a single item from the query.
 		"""
 		directory = os.path.normpath(os.getcwd() + os.sep + "Downloads")
-		meta = self.api.download(name, directory_path=directory)
+		meta = self.api.download(item_name, directory_path=directory)
 		return meta
 
 	def unzip_data(self, meta : dict):
@@ -191,33 +187,41 @@ class Query():
 		data_dir = os.path.normpath(os.getcwd() + os.sep + "Data")
 		with zipfile.ZipFile(zip_dir, "r") as zip_ref:
 			zip_ref.extractall(data_dir)
-		print("## Data unzipped ##")
+		self.logger.debug("Data unzipped.")
 
-	def process(self, mode, step):
+	def single_search(self):
 		"""
-		Proceed to retreiving desired data. 
+		Perform a single query for the given date range, cloud cover percentage and geojson.
 		"""
-		_bool = True
-		count = 0
-		while _bool:
-			name, cc = self.find_data(mode=mode, step=step)
-			ans = input("File found."+"\n"+"Name and cloud cover percentage: {}".format(cc)+"\n"+"Do you want to download it? [y/n]\n")
-			if ans == "y":
-				meta = self.download_item(name)
-				_bool = False
-				print("## Data succesfully retrieved ##", flush=True)
+		self.query_from_json()
+		if self.length > 0:
+			product_id, product_cc = self.q_dataframe.head(1).index[0], self.q_dataframe.head(1)["cloudcoverpercentage"]
+			self.logger.debug("File found.")
+			self.logger.debug(f"Date : {self.q_dataframe.head(1)['beginposition'][0]}")
+			self.logger.debug(f"Cloud cover percentage: {product_cc[0]}")
+			self.logger.debug("Do you want to download it? [y/n]")
+			_input = input()
+			if _input == "y":
+				meta = self.download_item(product_id)
 				self.unzip_data(meta)
-				img_writer = ImageWriter(meta, self.geojson)
+				img_writer = ImageWriter(meta, self.geojson, self.name)
 				img_writer.write()
 			else:
-				self.extend_date_range(mode=mode, step=step)
-			count += 1
-			if count == 20:
-				ans = input("Do you want to keep going? [y/n]")
-				if ans == "n":
-					_bool = False
-				else:
-					count = 0
+				self.logger.debug("Aborting download.")
+		else:
+			self.logger.debug("No product found.")
+
+	def iter_search(self, day_step : int, iter_max : int, backward : bool):
+		"""
+		Perform multiple queries, and stop when a product is found and downloaded, or when too many queries have been processed.
+		At each step,
+		"""
+		_iter = 0
+		while _iter < iter_max:
+			# CORE TO DO
+			_iter += 1
+			self.query_from_json()
+		self.logger.debug("No product found.")
 
 class ImageWriter():
 	"""
@@ -234,16 +238,17 @@ class ImageWriter():
 	ARCHIVES_PATH = os.path.join(WORKING_PATH, "Archives")
 	IMAGES_PATH = os.path.join(WORKING_PATH, "Images")
 
-	def __init__(self, meta : dict, geojson : str):
+	def __init__(self, meta : dict, geojson : str, name : str):
 		# Logger
 		self.logger = logging.getLogger("IMGWR LOG")
 		self.logger.setLevel(logging.DEBUG)
 		ch = logging.StreamHandler()
 		ch.setLevel(logging.DEBUG)
-		ch.setFormatter(logging.Formatter(fmt="%(asctime)s - %(name)s : %(levelname)s - %(message)s", datefmt="%m/%d/%Y %I:%M:%S"))
+		ch.setFormatter(logging.Formatter(fmt="%(asctime)s - %(name)s : %(levelname)s - %(message)s", datefmt="%d/%m/%Y %I:%M:%S"))
 		self.logger.addHandler(ch)
 
 		self.meta = meta
+		self.meta["name"] = name
 		self.geojson = geojson
 		self.logger.debug(f"Current working directory: {self.WORKING_PATH}")
 
@@ -259,7 +264,7 @@ class ImageWriter():
 		"""
 		Create the directory folders where images will be written. Return the new directory.
 		"""
-		folder_name = self.meta["title"]
+		folder_name = self.meta["name"]
 		new_path = os.path.join(self.ARCHIVES_PATH, folder_name)
 		os.mkdir(new_path) # Create new folder where images will be stored
 
@@ -269,7 +274,7 @@ class ImageWriter():
 		
 		## Create meta file ##
 		with open(new_path+"\\meta.json","w") as f_meta:
-			json.dump(self.meta,f_meta,indent=4)
+			json.dump(self.meta, f_meta, indent=4)
 			f_meta.close()
 
 		## Create resolution folders ##
@@ -323,7 +328,7 @@ class ImageWriter():
 		new_dir_path = os.path.join(dir_path, res)
 
 		image_name = self.meta["title"] + ".tif"
-		info = {"filename":image_name,"bands":{}}
+		info = {"filename" : image_name, "bands" : {}}
 		list_bands = os.listdir(new_data_path)
 
 		band_number = 1
@@ -373,7 +378,7 @@ class Image():
 		self.logger.setLevel(logging.DEBUG)
 		ch = logging.StreamHandler()
 		ch.setLevel(logging.DEBUG)
-		ch.setFormatter(logging.Formatter(fmt="%(asctime)s - %(name)s : %(levelname)s - %(message)s", datefmt="%m/%d/%Y %I:%M:%S"))
+		ch.setFormatter(logging.Formatter(fmt="%(asctime)s - %(name)s : %(levelname)s - %(message)s", datefmt="%d/%m/%Y %I:%M:%S"))
 		self.logger.addHandler(ch)
 
 		# Files attributes
@@ -506,7 +511,7 @@ class Image():
 		"""
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
-		if not b_info["bands"].keys().__contains__(band):
+		if not band in b_info["bands"].keys():
 			self.logger.error(f"Band {band} not available for this resolution.")
 		else:
 			with rio.open(os.path.join(res_path, filename), 'r') as file:
@@ -526,7 +531,7 @@ class Image():
 		"""
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
-		if not b_info["bands"].keys().__contains__(band_1) or not b_info["bands"].keys().__contains__(band_2):
+		if not (band_1 in b_info["bands"].keys()) or not (band_2 in b_info["bands"].keys()):
 			self.logger.error(f"Bands not available for this resolution.")
 		else:
 			with rio.open(os.path.join(res_path, filename), 'r') as file:
@@ -546,7 +551,7 @@ class Image():
 		"""
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
-		if not b_info["bands"].keys().__contains__(band_1) or not b_info["bands"].keys().__contains__(band_2):
+		if not (band_1 in b_info["bands"].keys()) or not (band_2 in b_info["bands"].keys()):
 			self.logger.error(f"Bands not available for this resolution.")
 		else:
 			with rio.open(os.path.join(res_path, filename), 'r') as file:
@@ -586,8 +591,7 @@ class Image():
 
 	def get_RGB(self, res : str):
 		"""
-		True Color Image.
-		Get the Red-Green-Blue band combination image and return it.
+		True color image.
 		"""
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
@@ -597,8 +601,7 @@ class Image():
 
 	def get_FIR(self, res : str):
 		"""
-		False-Infrared Color Image.
-		Get the NIR-Red-Green band combination image and return it.
+		False-infrared color image.
 		Healthy vegetation is seen bright red, clear water is seen dark blue... 
 		"""
 		res_path, b_info = self.load_info(res)
@@ -609,9 +612,25 @@ class Image():
 			bands = [b_info["bands"]["B8A"], b_info["bands"]["B04"], b_info["bands"]["B03"]]
 		self.load_image_bands(res_path, filename, bands)
 		return self.image
+
+	def get_SWIR(self, res : str):
+		"""
+		SWIR composite image.
+		SWIR composite images (band 11-12) enable to estimate how much water is present in plants and soils, and are a good way to visualise burn scars.
+		"""
+		res_path, b_info = self.load_info(res)
+		filename = b_info["filename"]
+		if res == "R10m":
+			self.logger.warning("Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions.")
+		else:
+			bands = [b_info["bands"]["B12"], b_info["bands"]["B8A"], b_info["bands"]["B04"]]
+		self.load_image_bands(res_path, filename, bands)
+		return self.image
 	
 	def get_Agriculture(self, res : str):
 		"""
+		Agriculture RGB composite image.
+		This composite is used to monitor crop health.
 		"""
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
@@ -624,6 +643,8 @@ class Image():
 
 	def get_FCUrban(self, res : str):
 		"""
+		False Color Urban composite image.
+		Enable to visualize clearly urbanized areas.
 		"""
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
@@ -636,6 +657,8 @@ class Image():
 
 	def get_Geology(self, res : str):
 		"""
+		Geology composite image.
+		Enable to identify geological features.
 		"""
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
@@ -648,6 +671,8 @@ class Image():
 
 	def get_HVeg(self, res : str):
 		"""
+		Healthy vegetation composite image.
+		Useful to monitor vegetation health.
 		"""
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
@@ -658,10 +683,10 @@ class Image():
 			self.load_image_bands(res_path, filename, bands)
 			return self.image
 
-	def get_Coastal(self, res : str):
+	def get_Bathymetric(self, res : str):
 		"""
 		Coastal RGB-like Color Image.
-		Get an image close to the RGB band combination, but improved for coastal areas.
+		Get an image close to the RGB band combination for coastal areas. Can be used to improve detection of suspended sediment in water.
 		"""
 		res_path, b_info = self.load_info(res)
 		filename = b_info["filename"]
@@ -675,7 +700,6 @@ class Image():
 	def get_NDVI(self, res : str):
 		"""
 		Normalized Difference Vegetation Index.
-		Compute the NDVI as an array and return it.
 		Useful to monitor droughts, urban expansion, land use in general.
 		"""
 		if res == "R10m":
@@ -684,10 +708,9 @@ class Image():
 			self.compute_NDI(res=res, band_1="B8A", band_2="B04")
 		return self.image
 
-	def get_NDWIveg(self, res : str):
+	def get_NDWI(self, res : str):
 		"""
-		Normalized Difference Water Index - Vegetation.
-		Compute the NDWIveg as an array and return it.
+		Normalized Difference Water Index.
 		Display the difference of water content in vegetation.
 		"""
 		if res == "R10m":
@@ -695,11 +718,10 @@ class Image():
 		self.compute_NDI(res=res, band_1="B8A", band_2="B12")
 		return self.image
 
-	def get_NDWIwb(self, res : str):
+	def get_NDMI(self, res : str):
 		"""
-		Normalized Difference Water Index - Water Bodies.
-		Compute the NDWIwb as an array and return it.
-		Useful to identify water.
+		Normalized Difference Moisture Index.
+		Useful to identify water and levels of moisture in soils..
 		"""
 		if res == "R10m":
 			self.compute_NDI(res=res, band_1="B03", band_2="B08")
@@ -715,13 +737,13 @@ def check_image_filename(filename):
 	"""
 	Return True if filename needs to be changed.
 	"""
-	return not ((filename == "") or ((filename[len(filename)-4:len(filename)] != ".png") and (filename[len(filename)-4:len(filename)] != ".jpg")) or (os.listdir(Image.IMAGES_PATH).__contains__(filename)))
+	return not ((filename == "") or ((filename[len(filename) - 4 : len(filename)] != ".png") and (filename[len(filename) - 4 : len(filename)] != ".jpg")) or (filename in os.listdir(Image.IMAGES_PATH)))
 
 def main():
-	q = Query("Lytton.json", (date(2021, 7, 4), date(2021, 7, 5)), 50)
-	q.process(1, "day")
+	q = Query("Altenahr.json", ('20210712', '20210719'), 100, "Altenahr_Flood")
+	q.single_search()
 
 if __name__ == '__main__':
 	main()
 else:
-	print(f"Module {__name__} imported.")
+	print(f"Module {__name__} imported.", flush=True)
