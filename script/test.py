@@ -1,4 +1,4 @@
-# Main script
+# Test script
 
 #############
 ## Imports ##
@@ -14,7 +14,8 @@ sys.path.append("utils\\processing")
 
 ## Custom imports ##
 from image import Image
-from utils.processing import mask, cluster, crop_2D, crop_3D, water_spectral_analysis, interpolation_2d, sharpen, MidpointNormalize
+from utils.processing import mask, cluster, crop_2D, crop_3D, water_spectral_analysis, interpolation_2d, sharpen
+from utils.figure import MidpointNormalize
 
 ###############
 ## Constants ##
@@ -277,7 +278,7 @@ def lytton_fire():
 	plt.figure(1)
 	plt.title("SWIR1 image (B11, B8A, B2)")
 	plt.text(20, 20, "Lytton, 04/07/2021, Sentinel-2 L2A Image", color="white")
-	plt.imshow(img.get_Agriculture("R20m", 0.01, 0.85))
+	plt.imshow(img.get_Agriculture("R20m"))
 	plt.xticks([])
 	plt.yticks([])
 
@@ -300,7 +301,7 @@ def lytton_fire():
 	plt.figure(4)
 	plt.title("NDMI")
 	plt.text(20, 20, "Lytton, 04/07/2021, Sentinel-2 L2A Image", color="black")
-	ndmi = img.get_NDWIveg("R20m")
+	ndmi = img.get_NDWI("R20m")
 	plt.imshow(ndmi, cmap="jet_r")
 	plt.xticks([])
 	plt.yticks([])

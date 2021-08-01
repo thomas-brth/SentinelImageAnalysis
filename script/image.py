@@ -64,22 +64,14 @@ URL = os.getenv('URL')
 
 class Query():
 	"""
-	# Query class Content #
-	Object used to extract data online, from Copernicus Open Access Hub with sentinelsat API and module.
-	
-	Attributes:
-		- geojson: String, name of the json file containing the footprint data
-		- date_range: datetime.date() tuple, time boundaries of the query
-		- cloudcoverpercentage: float tuple, cloud cover percentage boundaries of the query
-		- q_dataframe: DataFrame, query answer retrieved from Sentinel API as a DataFrame
-	
-	Properties:
-		- length: int, size of q_dataframe (an empty DataFrame means that no products matched the query)
-		- date_from: datetime.date(), low time boundary for the query
-		- date_to: datetime.date(), high time boundary for the query
+	Extract Sentinel-2 products from Sentinel Hub API, using sentinelsat python module.
 	"""
 
-	def __init__(self, geojson : str, date_range : tuple, cloudcoverpercentage : int, name : str):
+	WORKING_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+	DOWNLOAD_PATH = os.path.join(WORKING_PATH, "Downloads")
+	DATA_PATH = os.path.join(WORKING_PATH, "Data")
+
+	def __init__(self, geojson : str, date_range : tuple, cloudcover_percentage : int, name : str):
 		# Logger
 		self.logger = logging.getLogger("QUERY LOG")
 		self.logger.setLevel(logging.DEBUG)
@@ -91,7 +83,7 @@ class Query():
 		self.api = self.connect()
 		self.geojson = os.path.normpath(os.getcwd() + os.sep + "GeoJSON" + os.sep + geojson)
 		self.date_range = date_range
-		self.cloudcoverpercentage = cloudcoverpercentage
+		self.cloudcover_percentage = cloudcover_percentage
 		self.name = name
 		self.q_dataframe = None
 
@@ -131,52 +123,34 @@ class Query():
 						 		  date=self.date_range,
 								  platformname="Sentinel-2",
 								  processinglevel="Level-2A",
-								  cloudcoverpercentage=(0, self.cloudcoverpercentage),
+								  cloudcover_percentage=(0, self.cloudcover_percentage),
 								  area_relation="Contains",
-						 		  order_by="cloudcoverpercentage"
+						 		  order_by="cloudcover_percentage"
 						 		  )
 		self.q_dataframe = self.api.to_dataframe(products)
 
-	def extend_date_range(self, mode, step):
+	def shift_date_range(self, day_step : int, backward : bool):
 		"""
-		TO BE CHANGED
-
-		2 modes available:
-			- mode = Query.SOONER, i.e. 1, date_from is set 
-			- mode = Query.LATER, i.e. 2, date_from is set 
-		step is a string: step="day"/"week"/"month"
+		Shift the date range from a given number of days.
+		If backward is True, dates are shifted towards older values.
 		"""
-		if not self.DATESTEPS.__contains__(step):
-			print("Step format error. Setting step to 'week'...", flush=True)
-			step = "week" #Set week as default step
-
-		steps_to_days = {"day":1, "week":7, "month":30}
-		timedelta = td(days=steps_to_days[step])
-
-		terminated = False
-		while not terminated:
-			if mode == self.SOONER:
-				new_date_from = self.date_range[0]-timedelta
-				new_date_to = self.date_range[0]
-				self.date_range = (new_date_from,new_date_to)
-				print(self.date_range)
-				terminated = True
-			elif mode == self.LATER:
-				new_date_from = self.date_range[1]
-				new_date_to = self.date_range[1]+timedelta
-				self.date_range = (new_date_from, new_date_to)
-				print(self.date_range)
-				terminated = True
-			else:
-				mode = input("Choose a correct mode (1=SOONER, 2=LATER) : ")
-		print("Date range changed.", flush=True)
+		timedelta = td(days=day_step)
+		if backward:
+			new_date_from = self.date_range[0] - timedelta
+			new_date_to = self.date_range[0]
+		else:
+			new_date_from = self.date_range[1]
+			new_date_to = self.date_range[1] + timedelta
+		self.date_range = (new_date_from, new_date_to)
+		self.logger.debug("Date range changed.")
+		self.logger.debug(f"From : {self.date_range[0].isoformat()}")
+		self.logger.debug(f"To : {self.date_range[1].isoformat()}")
 
 	def download_item(self, item_name : str):
 		"""
 		Download a single item from the query.
 		"""
-		directory = os.path.normpath(os.getcwd() + os.sep + "Downloads")
-		meta = self.api.download(item_name, directory_path=directory)
+		meta = self.api.download(item_name, directory_path=self.DOWNLOAD_PATH)
 		return meta
 
 	def unzip_data(self, meta : dict):
@@ -184,9 +158,8 @@ class Query():
 		Unzip downloaded data.
 		"""
 		zip_dir = meta["path"]
-		data_dir = os.path.normpath(os.getcwd() + os.sep + "Data")
 		with zipfile.ZipFile(zip_dir, "r") as zip_ref:
-			zip_ref.extractall(data_dir)
+			zip_ref.extractall(self.DATA_PATH)
 		self.logger.debug("Data unzipped.")
 
 	def single_search(self):
@@ -195,7 +168,7 @@ class Query():
 		"""
 		self.query_from_json()
 		if self.length > 0:
-			product_id, product_cc = self.q_dataframe.head(1).index[0], self.q_dataframe.head(1)["cloudcoverpercentage"]
+			product_id, product_cc = self.q_dataframe.head(1).index[0], self.q_dataframe.head(1)["cloudcover_percentage"]
 			self.logger.debug("File found.")
 			self.logger.debug(f"Date : {self.q_dataframe.head(1)['beginposition'][0]}")
 			self.logger.debug(f"Cloud cover percentage: {product_cc[0]}")
@@ -206,34 +179,37 @@ class Query():
 				self.unzip_data(meta)
 				img_writer = ImageWriter(meta, self.geojson, self.name)
 				img_writer.write()
+				return True
 			else:
 				self.logger.debug("Aborting download.")
 		else:
 			self.logger.debug("No product found.")
+		return False
 
 	def iter_search(self, day_step : int, iter_max : int, backward : bool):
 		"""
 		Perform multiple queries, and stop when a product is found and downloaded, or when too many queries have been processed.
-		At each step,
+		At each step, the date range is shifted by 'day_step' days. If backward is True, it is shifted toward an older date range.
 		"""
 		_iter = 0
 		while _iter < iter_max:
-			# CORE TO DO
-			_iter += 1
-			self.query_from_json()
-		self.logger.debug("No product found.")
+			_bool = self.single_search()
+			if _bool:
+				# Break the loop when an image has been downloaded
+				return True
+			else:
+				_iter += 1
+				self.shift_date_range(day_step=day_step, backward=backward)
+		self.logger.debug("Iterative query terminated.")
+		return False
 
 class ImageWriter():
 	"""
-	# ImageWriter class Content #
-	Object used to write downloaded data into desired format. Data are then stored in separate folders, ordered by resolution.
-	
-	Attributes:
-		- meta: Dictionary, metadata of downloaded data
-		- geojson: String, name of the json file containing the footprint data
+	Object used to write downloaded data into desired format.
+	Data are then stored in separate folders, ordered by resolution.
 	"""
 
-	WORKING_PATH = os.path.dirname(__file__)
+	WORKING_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 	DATA_PATH = os.path.join(WORKING_PATH, "Data")
 	ARCHIVES_PATH = os.path.join(WORKING_PATH, "Archives")
 	IMAGES_PATH = os.path.join(WORKING_PATH, "Images")
@@ -358,17 +334,10 @@ class ImageWriter():
 
 class Image():
 	"""
-	# Image class content #
-	Object used to get images from the data previously downloaded.
-
-	Attributes:
-		- name: String, name of the folder where the wanted image is stored.
-		- folder_path: String, path of the folder where the image is stored.
-		- meta: dict(), metadata of the image.
-		- image: np.array(), image stored as an array. None if no image has been loaded.
+	Create an image object, to access data and metadata from previously downloaded Sentinel-2 images.
 	"""
 	
-	WORKING_PATH = os.path.dirname(__file__)
+	WORKING_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 	ARCHIVES_PATH = os.path.join(WORKING_PATH, "Archives")
 	IMAGES_PATH = os.path.join(WORKING_PATH, "Images")
 
@@ -395,8 +364,8 @@ class Image():
 		self.pproc = {
 			"crop" : False,
 			"stretch" : True,
-			"pLow" : 0.05,
-			"pHigh" : 0.85,
+			"pLow" : 0,
+			"pHigh" : 5,
 			"normalize": True
 			}
 
@@ -417,7 +386,7 @@ class Image():
 		"""
 		self.pproc.update(kwargs)
 
-	def load_info(self, res : str):
+	def _load_info(self, res : str):
 		"""
 		Load band metadata for a given resolution.
 		"""
@@ -427,13 +396,13 @@ class Image():
 			foo.close()
 		return res_path, b_info
 
-	def is_loaded(self):
+	def _is_loaded(self):
 		"""
 		Check if current image has been loaded. Return False if not.
 		"""
 		return (self.image != None).any()
 
-	def linear_stretch(self):
+	def _linear_stretch(self):
 		"""
 		Apply linear stretching to the current image.
 		"""
@@ -441,7 +410,7 @@ class Image():
 		tmp_image = []
 		for i in range(self.image.shape[np.argmin(self.image.shape)]):
 			band = self.image[:,:,i]
-			iMin, iMax = np.percentile(band[~np.isnan(band)], (self.pproc["pLow"], 100-self.pproc["pHigh"]))
+			iMin, iMax = np.percentile(band[~np.isnan(band)], (self.pproc["pLow"], 100 - self.pproc["pHigh"]))
 			band_rescaled = exposure.rescale_intensity(band, in_range=(iMin, iMax))
 			tmp_image.append(band_rescaled)
 		img_rescale = np.dstack(tmp_image)
@@ -464,7 +433,7 @@ class Image():
 		"""
 		Save the current image into a .png file.
 		"""
-		if not self.is_loaded():
+		if not self._is_loaded():
 			self.logger.warning("No image loaded.")
 		else:
 			self.logger.debug("Saving image...")
@@ -499,7 +468,7 @@ class Image():
 			if self.pproc["crop"]:
 				self.image = crop_3D(self.image)
 			if self.pproc["stretch"]:
-				self.linear_stretch()
+				self._linear_stretch()
 			if self.pproc["normalize"]:
 				self._normalize_image()
 
@@ -509,7 +478,7 @@ class Image():
 
 		A factor can be applied.
 		"""
-		res_path, b_info = self.load_info(res)
+		res_path, b_info = self._load_info(res)
 		filename = b_info["filename"]
 		if not band in b_info["bands"].keys():
 			self.logger.error(f"Band {band} not available for this resolution.")
@@ -529,7 +498,7 @@ class Image():
 		Compute a Normalize Difference Index, i.e. the difference between 2 bands, divided by their sum.
 		Values varies between -1 and 1
 		"""
-		res_path, b_info = self.load_info(res)
+		res_path, b_info = self._load_info(res)
 		filename = b_info["filename"]
 		if not (band_1 in b_info["bands"].keys()) or not (band_2 in b_info["bands"].keys()):
 			self.logger.error(f"Bands not available for this resolution.")
@@ -549,7 +518,7 @@ class Image():
 		Compute a simple ratio between 2 bands.
 		Non-finite values are replaced by zeros.
 		"""
-		res_path, b_info = self.load_info(res)
+		res_path, b_info = self._load_info(res)
 		filename = b_info["filename"]
 		if not (band_1 in b_info["bands"].keys()) or not (band_2 in b_info["bands"].keys()):
 			self.logger.error(f"Bands not available for this resolution.")
@@ -593,7 +562,7 @@ class Image():
 		"""
 		True color image.
 		"""
-		res_path, b_info = self.load_info(res)
+		res_path, b_info = self._load_info(res)
 		filename = b_info["filename"]
 		bands = [b_info["bands"]["B04"], b_info["bands"]["B03"], b_info["bands"]["B02"]]
 		self.load_image_bands(res_path, filename, bands)
@@ -604,7 +573,7 @@ class Image():
 		False-infrared color image.
 		Healthy vegetation is seen bright red, clear water is seen dark blue... 
 		"""
-		res_path, b_info = self.load_info(res)
+		res_path, b_info = self._load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
 			bands = [b_info["bands"]["B08"], b_info["bands"]["B04"], b_info["bands"]["B03"]]
@@ -618,7 +587,7 @@ class Image():
 		SWIR composite image.
 		SWIR composite images (band 11-12) enable to estimate how much water is present in plants and soils, and are a good way to visualise burn scars.
 		"""
-		res_path, b_info = self.load_info(res)
+		res_path, b_info = self._load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
 			self.logger.warning("Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions.")
@@ -632,7 +601,7 @@ class Image():
 		Agriculture RGB composite image.
 		This composite is used to monitor crop health.
 		"""
-		res_path, b_info = self.load_info(res)
+		res_path, b_info = self._load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
 			self.logger.warning("Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions.")
@@ -646,7 +615,7 @@ class Image():
 		False Color Urban composite image.
 		Enable to visualize clearly urbanized areas.
 		"""
-		res_path, b_info = self.load_info(res)
+		res_path, b_info = self._load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
 			self.logger.warning("Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions.")
@@ -660,7 +629,7 @@ class Image():
 		Geology composite image.
 		Enable to identify geological features.
 		"""
-		res_path, b_info = self.load_info(res)
+		res_path, b_info = self._load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
 			self.logger.warning("Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions.")
@@ -674,7 +643,7 @@ class Image():
 		Healthy vegetation composite image.
 		Useful to monitor vegetation health.
 		"""
-		res_path, b_info = self.load_info(res)
+		res_path, b_info = self._load_info(res)
 		filename = b_info["filename"]
 		if res == "R10m":
 			self.logger.warning("Image not available for this resolution. Please choose 'R20m' or 'R60m' resolutions.")
@@ -688,7 +657,7 @@ class Image():
 		Coastal RGB-like Color Image.
 		Get an image close to the RGB band combination for coastal areas. Can be used to improve detection of suspended sediment in water.
 		"""
-		res_path, b_info = self.load_info(res)
+		res_path, b_info = self._load_info(res)
 		filename = b_info["filename"]
 		if (res == "R10m" or res == "R20m"):
 			self.logger.warning("Image not available for this resolution. Please choose 'R60m' resolution.")
@@ -740,8 +709,8 @@ def check_image_filename(filename):
 	return not ((filename == "") or ((filename[len(filename) - 4 : len(filename)] != ".png") and (filename[len(filename) - 4 : len(filename)] != ".jpg")) or (filename in os.listdir(Image.IMAGES_PATH)))
 
 def main():
-	q = Query("Altenahr.json", ('20210712', '20210719'), 100, "Altenahr_Flood")
-	q.single_search()
+	q = Query("Schuld.json", (date(2021, 7, 18), date(2021, 7, 19)), 10, "Schuld_Flood")
+	q.iter_search(5, 10, True)
 
 if __name__ == '__main__':
 	main()
