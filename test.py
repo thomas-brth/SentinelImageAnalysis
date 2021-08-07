@@ -13,9 +13,9 @@ sys.path.append("utils")
 sys.path.append("utils\\processing")
 
 ## Custom imports ##
-from image import Image
-from utils.processing import mask, cluster, crop_2D, crop_3D, water_spectral_analysis, interpolation_2d, sharpen
-from utils.figure import MidpointNormalize
+from sentinel_image_analysis.image import Image
+from sentinel_image_analysis.utils.processing import mask, cluster, crop_2D, crop_3D, water_spectral_analysis, interpolation_2d, sharpen
+from sentinel_image_analysis.utils.figure import MidpointNormalize
 
 ###############
 ## Constants ##

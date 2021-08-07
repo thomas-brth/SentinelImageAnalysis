@@ -11,7 +11,7 @@ from skimage import morphology
 import cv2 as cv
 
 ## Custom imports
-from mask import water_mask
+from .mask import water_mask
 
 ###############
 ## Constants ##

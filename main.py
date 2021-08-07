@@ -14,7 +14,7 @@ from datetime import date
 import logging
 
 ## Custom imports ##
-from image import Query
+from sentinel_image_analysis.image import Query
 
 ###############
 ## Constants ##

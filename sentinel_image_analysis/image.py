@@ -46,8 +46,8 @@ from dotenv import load_dotenv
 import logging
 
 ## Custom imports ##
-from utils.processing import crop_2D, crop_3D
-from utils import geo
+from .utils.processing import crop_2D, crop_3D
+from .utils import geo
 
 ###############
 ## Constants ##
