@@ -266,7 +266,7 @@ def lytton_analysis():
 	plt.show()
 
 def lytton_fire():
-	img = Image("S2A_MSIL2A_20210704T190921_N0301_R056_T10UEA_20210704T233134")
+	img = Image("Milas_Fire_1")
 	b8 = img.load_single_band("R10m", "B08") / 10000 * 2.3
 	b4 = img.load_single_band("R10m", "B04") / 10000 * 2.9
 	b3 = img.load_single_band("R10m", "B03") / 10000 * 3.1
@@ -317,7 +317,6 @@ def lytton_fire():
 	plt.colorbar(norm=norm)
 
 	plt.show()
-
 
 if __name__ == '__main__':
 	lytton_fire()

@@ -55,7 +55,7 @@ class SentinelParser(argparse.ArgumentParser):
 	def filename(self):
 		"""
 		"""
-		return self.args.filename + ".json"
+		return self.args.filename[0] + ".json"
 
 	@property
 	def date_from(self):
@@ -73,43 +73,43 @@ class SentinelParser(argparse.ArgumentParser):
 	def cloudcover_percentage(self):
 		"""
 		"""
-		return self.args.cloudcover_percentage
+		return self.args.cloudcover_percentage[0]
 
 	@property
 	def name(self):
 		"""
 		"""
-		return self.args.name
+		return self.args.name[0]
 
 	@property
 	def search_type(self):
 		"""
 		"""
-		return self.args.search_type
+		return self.args.search_type[0]
 
 	@property
 	def day_step(self):
 		"""
 		"""
-		return self.args.day_step
+		return self.args.day_step[0]
 
 	@property
 	def iter_max(self):
 		"""
 		"""
-		return self.args.iter_max
+		return self.args.iter_max[0]
 
 	@property
 	def backward(self):
 		"""
 		"""
-		return self.args.backward
+		return self.args.backward[0]
 
-	def _check_arguments():
+	def _check_arguments(self):
 		"""
 		"""
 		# Check if geoJSON filename is valid
-		if not self.filename in os.listdir("GeoJSON"):
+		if not self.filename in os.listdir(os.path.normpath(os.path.join(os.path.join(os.path.dirname(__file__), os.path.pardir), "GeoJSON"))):
 			self.logger.error("GeoJSON file not found.")
 			raise Exception()
 
@@ -124,7 +124,7 @@ class SentinelParser(argparse.ArgumentParser):
 			raise Exception()
 
 		# Check if folder name is already taken
-		if self.name in os.listdir("Archives"):
+		if self.name in os.listdir(os.path.normpath(os.path.join(os.path.join(os.path.dirname(__file__), os.path.pardir), "Archives"))):
 			self.logger.error("Folder name already taken.")
 			raise Exception()
 
@@ -142,7 +142,7 @@ class SentinelParser(argparse.ArgumentParser):
 		Create and send a query according to parsed arguments.
 		"""
 		self._check_arguments()
-		q = Query(geojson=self.args.filename, date_range=(self.date_from, self.date_to), cloudcover_percentage=self.cloudcover_percentage, name=self.name)
+		q = Query(geojson=self.filename, date_range=(self.date_from, self.date_to), cloudcover_percentage=self.cloudcover_percentage, name=self.name)
 		if self.search_type == 's':
 			q.single_search()
 		elif self.search_type == 'i':

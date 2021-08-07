@@ -47,6 +47,7 @@ import logging
 
 ## Custom imports ##
 from utils.processing import crop_2D, crop_3D
+from utils import geo
 
 ###############
 ## Constants ##
@@ -80,8 +81,11 @@ class Query():
 		ch.setFormatter(logging.Formatter(fmt="%(asctime)s - %(name)s : %(levelname)s - %(message)s", datefmt="%d/%m/%Y %I:%M:%S"))
 		self.logger.addHandler(ch)
 
+		# API connection
 		self.api = self.connect()
-		self.geojson = os.path.normpath(os.getcwd() + os.sep + "GeoJSON" + os.sep + geojson)
+
+		# Attributes
+		self.geojson = os.path.normpath(self.WORKING_PATH + os.sep + "GeoJSON" + os.sep + geojson)
 		self.date_range = date_range
 		self.cloudcover_percentage = cloudcover_percentage
 		self.name = name
@@ -123,9 +127,9 @@ class Query():
 						 		  date=self.date_range,
 								  platformname="Sentinel-2",
 								  processinglevel="Level-2A",
-								  cloudcover_percentage=(0, self.cloudcover_percentage),
+								  cloudcoverpercentage=(0, self.cloudcover_percentage),
 								  area_relation="Contains",
-						 		  order_by="cloudcover_percentage"
+						 		  order_by="cloudcoverpercentage"
 						 		  )
 		self.q_dataframe = self.api.to_dataframe(products)
 
@@ -168,7 +172,7 @@ class Query():
 		"""
 		self.query_from_json()
 		if self.length > 0:
-			product_id, product_cc = self.q_dataframe.head(1).index[0], self.q_dataframe.head(1)["cloudcover_percentage"]
+			product_id, product_cc = self.q_dataframe.head(1).index[0], self.q_dataframe.head(1)["cloudcoverpercentage"]
 			self.logger.debug("File found.")
 			self.logger.debug(f"Date : {self.q_dataframe.head(1)['beginposition'][0]}")
 			self.logger.debug(f"Cloud cover percentage: {product_cc[0]}")
@@ -223,9 +227,12 @@ class ImageWriter():
 		ch.setFormatter(logging.Formatter(fmt="%(asctime)s - %(name)s : %(levelname)s - %(message)s", datefmt="%d/%m/%Y %I:%M:%S"))
 		self.logger.addHandler(ch)
 
+		# Attributes
 		self.meta = meta
 		self.meta["name"] = name
+		self.meta["image_footprint"] = geojson_to_wkt(read_geojson(geojson))
 		self.geojson = geojson
+		
 		self.logger.debug(f"Current working directory: {self.WORKING_PATH}")
 
 	def get_data_path(self):
@@ -355,8 +362,6 @@ class Image():
 		self.folder_path = os.path.join(self.ARCHIVES_PATH, self.name) # Folder path where files are stored for each resolution
 		with open(os.path.join(self.folder_path, "meta.json"), 'r') as foo:
 			self.meta = json.load(foo) # Metadata
-			self.logger.debug(f"Image {self.name} loaded.")
-			self.logger.debug(f"Image acquired on {self.meta['date']}.")
 			foo.close()
 
 		# Image attributes
@@ -369,6 +374,9 @@ class Image():
 			"normalize": True
 			}
 
+		self.logger.debug(f"Image {self.name} loaded.")
+		self.logger.debug(f"Image acquired on {self.meta['date']}.")
+
 	@property
 	def date(self):
 		"""
@@ -376,6 +384,27 @@ class Image():
 		"""
 		return self.meta["date"]
 
+	@property
+	def footprint(self):
+		"""
+		Return the image footprint as a string.
+		"""
+		return self.meta["image_footprint"]
+
+	@property
+	def tile_footprint(self):
+		"""
+		Return the footprint of the whole tile, from which the image has been extracted, as a string.
+		"""
+		return self.meta["footprint"]
+
+	@property
+	def total_area(self):
+		"""
+		Return an approximation of the image total area in square kilometers.
+		"""
+		return geo.get_area(geom=self.footprint)
+	
 	#####################
 	## Generic methods ##
 	#####################
@@ -711,6 +740,7 @@ def check_image_filename(filename):
 def main():
 	q = Query("Schuld.json", (date(2021, 7, 18), date(2021, 7, 19)), 10, "Schuld_Flood")
 	q.iter_search(5, 10, True)
+	pass
 
 if __name__ == '__main__':
 	main()

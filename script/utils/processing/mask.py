@@ -20,10 +20,10 @@ import numpy as np
 
 def water_mask(image, res : str, threshold : float = 0.2, reversed : bool = False):
 	"""
-	Return a mask based on NDWIwb index.
+	Return a mask based on NDMI index.
 	"""
-	ndwi = image.get_NDMI(res=res)
-	mask = ndwi > threshold
+	ndmi = image.get_NDMI(res=res)
+	mask = ndmi > threshold
 	if reversed:
 		return reverse(mask)
 	else:
@@ -31,7 +31,7 @@ def water_mask(image, res : str, threshold : float = 0.2, reversed : bool = Fals
 
 def reverse(bool_array : np.ndarray):
 	"""
-	Return a reversed array.
+	Reverse a boolean mask.
 	"""
 	return ~bool_array
 
