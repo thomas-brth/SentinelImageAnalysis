@@ -4,6 +4,10 @@
 ## Imports ##
 #############
 
+## Custom imports ##
+from .image import *
+from .utils import *
+
 ###############
 ## Constants ##
 ###############

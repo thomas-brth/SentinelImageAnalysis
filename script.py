@@ -6,6 +6,8 @@
 
 ## General imports ##
 from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation
+from PIL import Image as Img
 import numpy as np
 import time
 import sys
@@ -13,9 +15,7 @@ sys.path.append("utils")
 sys.path.append("utils\\processing")
 
 ## Custom imports ##
-from sentinel_image_analysis.image import Image
-from sentinel_image_analysis.utils.processing import mask, cluster, crop_2D, crop_3D, water_spectral_analysis, interpolation_2d, sharpen
-from sentinel_image_analysis.utils.figure import MidpointNormalize
+from sentIA import *
 
 ###############
 ## Constants ##
@@ -318,5 +318,183 @@ def lytton_fire():
 
 	plt.show()
 
+def milas_fire():
+	# 26/07 Image
+	img1 = Image("Milas")
+	img1.pproc['pHigh'] = 0.75
+
+	# 07/08 Image
+	img2 = Image("Milas_Fire_2")
+	img2.pproc['pHigh'] = 1.5
+
+	# Norm
+	ndvi_norm = MidpointNormalize(vmin=0, vmax=1, midpoint=0.5)
+	ndwi_norm = MidpointNormalize(vmin=-1, vmax=1, midpoint=0)
+
+	# RGB Figure
+	plt.figure(1)
+	plt.suptitle("RGB image (B4, B3, B2)")
+	plt.subplot(121)
+	plt.title("26/07/2021")
+	im = plt.imshow(img1.get_RGB('R10m'))
+	plt.xticks([])
+	plt.yticks([])
+
+	plt.subplot(122)
+	plt.title("07/08/2021")
+	plt.imshow(img2.get_RGB('R10m'))
+	plt.xticks([])
+	plt.yticks([])
+	# FIR Figure
+	plt.figure(2)
+	plt.suptitle("FIR image (B8, B4, B3)")
+	plt.subplot(121)
+	plt.title("26/07/2021")
+	plt.imshow(img1.get_FIR('R10m'))
+	plt.xticks([])
+	plt.yticks([])
+
+	plt.subplot(122)
+	plt.title("07/08/2021")
+	plt.imshow(img2.get_FIR('R10m'))
+	plt.xticks([])
+	plt.yticks([])
+
+	# NDVI Figure
+	plt.figure(3)
+	plt.suptitle("NDVI")
+	plt.subplot(121)
+	plt.title("26/07/2021")
+	ndvi1 = img1.get_NDVI("R10m")
+	plt.imshow(ndvi1, cmap="RdYlGn", norm=ndvi_norm)
+	plt.xticks([])
+	plt.yticks([])
+	
+	plt.subplot(122)
+	plt.title("07/08/2021")
+	ndvi2 = img2.get_NDVI("R10m")
+	plt.imshow(ndvi2, cmap="RdYlGn", norm=ndvi_norm)
+	plt.xticks([])
+	plt.yticks([])
+
+	# NDWI Figure
+	plt.figure(4)
+	plt.suptitle("NDWI")
+	plt.subplot(121)
+	plt.title("26/07/2021")
+	ndwi1 = img1.get_NDWI("R10m")
+	plt.imshow(ndwi1, cmap="magma", norm=ndwi_norm)
+	plt.xticks([])
+	plt.yticks([])
+	
+	plt.subplot(122)
+	plt.title("07/08/2021")
+	ndwi2 = img2.get_NDWI("R10m")
+	plt.imshow(ndwi2, cmap="magma", norm=ndwi_norm)
+	plt.xticks([])
+	plt.yticks([])
+
+	# NDMI Figure
+	plt.figure(5)
+	plt.suptitle("NDMI")
+	plt.subplot(121)
+	plt.title("26/07/2021")
+	ndmi1 = img1.get_NDMI("R20m")
+	count = np.count_nonzero(~np.isnan(ndmi1))
+	m = scl_based_mask(img2, 'R20m')
+	ndmi1[m] = np.nan
+	plt.imshow(ndmi1, cmap="jet_r", norm=ndwi_norm)
+	plt.xticks([])
+	plt.yticks([])
+	
+	plt.subplot(122)
+	plt.title("07/08/2021")
+	ndmi2 = img2.get_NDMI("R20m")
+	ndmi2[m] = np.nan
+	plt.imshow(ndmi2, cmap="jet_r", norm=ndwi_norm)
+	plt.xticks([])
+	plt.yticks([])
+
+	# NDMI difference Figure
+	plt.figure(6)
+	plt.suptitle("NDMI Difference")
+	diff = abs(ndmi1 - ndmi2)
+	plt.imshow(diff)
+	plt.colorbar()
+	plt.xticks([])
+	plt.yticks([])
+
+	# NDMI difference mask Figure
+	plt.figure(7)
+	plt.suptitle("NDMI Difference mask")
+	m_diff = diff > 0.35
+	plt.imshow(m_diff)
+	plt.xticks([])
+	plt.yticks([])
+
+	## Area covered by forest fire ##
+	relative_area = (count - np.count_nonzero(m_diff)) / count
+	print(f"Image area is about {img1.total_area} km2")
+	print(f"Burnt area is about {relative_area * img1.total_area} km2")
+	## About 339.18847144499534 km2 burnt
+
+	# NDMI pixels distribution
+	plt.figure(8)
+	plt.suptitle("NDMI pixels distribution")
+	s1 = ndmi1.reshape(1, -1)[0]
+	s2 = ndmi2.reshape(1, -1)[0]
+	plt.hist(s1, bins=500, histtype='step', label="26/07/2021")
+	plt.hist(s2, bins=500, histtype='step', label="07/08/2021")
+	plt.xlabel("NDMI")
+	plt.ylabel("Number of pixels")
+	plt.legend()
+
+	plt.show()
+
+def milas_animation():
+	plt.rcParams['axes.facecolor'] = 'black'
+
+	# 26/07 Image
+	img1 = Image("Milas")
+	img1.pproc['pHigh'] = 0.75
+
+	# 07/08 Image
+	img2 = Image("Milas_Fire_2")
+	img2.pproc['pHigh'] = 1.5
+
+	# Norm
+	ndvi_norm = MidpointNormalize(vmin=-1, vmax=0.2, midpoint=-0.4)
+	ndwi_norm = MidpointNormalize(vmin=-1, vmax=1, midpoint=0)
+
+	ndvi1 = img1.get_FIR('R10m')
+	ndvi2 = img2.get_FIR('R10m')
+
+	l = [ndvi1, ndvi2]
+
+	fig = plt.figure(figsize=(14, 10))
+	fig.patch.set_facecolor('black')
+	#i = Img.open("sentinel_image_analysis\\utils\\figure\\logo\\sentinel_hub_bb.png")
+	#i = i.resize((i.size[0]//10, i.size[1]//10))
+	#fig.figimage(np.asarray(i), 40, 40, resize=True)
+	im = plt.imshow(ndvi1)
+	im.axes.spines['top'].set_color('white')
+	im.axes.spines['left'].set_color('white')
+	im.axes.spines['right'].set_color('white')
+	im.axes.spines['bottom'].set_color('white')
+	plt.xticks([])
+	plt.yticks([])
+	plt.suptitle("FIR composite image (B8, B4, B3)",fontsize=24, fontweight='bold', color='white')
+	plt.title("Changes between 26/07 and 07/08", fontsize=16, color='white')
+	#col =plt.colorbar(fraction=0.058, pad=0.025, orientation='horizontal')
+	#col.ax.tick_params(color='white', labelcolor='white')
+	#col.outline.set_edgecolor('white')
+	def update(i):
+		im.set_array(l[i])
+		return [im]
+
+	anim = FuncAnimation(fig, update, frames=2, interval=1500)
+	#anim.save("Images//FIR_anim.gif", writer='imagemagick', savefig_kwargs={'facecolor':'black'})
+	plt.show()
+
 if __name__ == '__main__':
-	lytton_fire()
+	milas_animation()

@@ -706,20 +706,20 @@ class Image():
 			self.compute_NDI(res=res, band_1="B8A", band_2="B04")
 		return self.image
 
-	def get_NDWI(self, res : str):
+	def get_NDMI(self, res : str):
 		"""
-		Normalized Difference Water Index.
-		Display the difference of water content in vegetation.
+		Normalized Difference Moisture Index.
+		Useful to identify water and levels of moisture in soils.
 		"""
 		if res == "R10m":
 			self.logger.warning("Bands not available for this resolution.")
 		self.compute_NDI(res=res, band_1="B8A", band_2="B12")
 		return self.image
 
-	def get_NDMI(self, res : str):
+	def get_NDWI(self, res : str):
 		"""
-		Normalized Difference Moisture Index.
-		Useful to identify water and levels of moisture in soils..
+		Normalized Difference Water Index.
+		Display the difference of water content in vegetation.
 		"""
 		if res == "R10m":
 			self.compute_NDI(res=res, band_1="B03", band_2="B08")

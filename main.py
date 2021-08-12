@@ -14,7 +14,7 @@ from datetime import date
 import logging
 
 ## Custom imports ##
-from sentinel_image_analysis.image import Query
+from sentIA import *
 
 ###############
 ## Constants ##
@@ -103,13 +103,13 @@ class SentinelParser(argparse.ArgumentParser):
 	def backward(self):
 		"""
 		"""
-		return self.args.backward[0]
+		return self.args.backward
 
 	def _check_arguments(self):
 		"""
 		"""
 		# Check if geoJSON filename is valid
-		if not self.filename in os.listdir(os.path.normpath(os.path.join(os.path.join(os.path.dirname(__file__), os.path.pardir), "GeoJSON"))):
+		if not self.filename in os.listdir(os.path.normpath(os.path.join(os.path.dirname(__file__), "GeoJSON"))):
 			self.logger.error("GeoJSON file not found.")
 			raise Exception()
 
@@ -124,14 +124,15 @@ class SentinelParser(argparse.ArgumentParser):
 			raise Exception()
 
 		# Check if folder name is already taken
-		if self.name in os.listdir(os.path.normpath(os.path.join(os.path.join(os.path.dirname(__file__), os.path.pardir), "Archives"))):
+		if self.name in os.listdir(os.path.normpath(os.path.join(os.path.dirname(__file__), "Archives"))):
 			self.logger.error("Folder name already taken.")
 			raise Exception()
 
 		# Check iterative search arguments
-		if self.search_type == "i" and not self.backward in [0, 1]:
-			self.logger.error("Invalid backward argument. Type in '0' or '1'.")
-			raise Exception()
+		if self.search_type == "i":
+			if not self.backward in [0, 1]:
+				self.logger.error("Invalid backward argument. Type in '0' or '1'.")
+				raise Exception()
 		elif self.search_type != "s":
 			self.logger.error("Invalid search type argument. Type in 's' or 'i'.")
 			raise Exception()
@@ -154,6 +155,7 @@ class SentinelParser(argparse.ArgumentParser):
 
 def main():
 	parser = SentinelParser()
+	print(parser.args)
 	try:
 		parser.execute()
 	except Exception as e:

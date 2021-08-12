@@ -4,7 +4,13 @@
 ## Imports ##
 #############
 
+## General imports ##
 import enum
+
+## Custom Imports ##
+from .processing import *
+from .figure import *
+from .geo import *
 
 ###############
 ## Constants ##
