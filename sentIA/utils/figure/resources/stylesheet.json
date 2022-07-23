@@ -1,0 +1,41 @@
+{
+	"facecolor" : "black",
+	"contour_color" : "white", 
+	"font" : {
+		"suptitle" : {
+			"fontsize" : 24,
+			"fontweight" : "bold",
+			"color" : "white"
+		},
+		"title" : {
+			"fontsize" : 16,
+			"color" : "white"
+		}
+	},
+	"tick_params" : {
+		"bottom" : false,
+		"top" : false,
+		"left" : false,
+		"right" : false,
+		"labelbottom" : false,
+		"labeltop" : false,
+		"labelleft" : false,
+		"labelright" : false,
+		"colors" : "white"
+	},
+	"colorbar" : {
+		"vertical" : {
+			"orientation" : "vertical",
+			"fraction" : 0.058,
+			"pad" : 0.025,
+			"shrink" : 0.52
+		},
+		"horizontal" : {
+			"orientation" : "horizontal",
+			"fraction" : 0.058,
+			"pad" : 0.025,
+			"shrink" : 0.52
+		},
+		"outline" : "white"
+	}
+}

@@ -155,7 +155,6 @@ class SentinelParser(argparse.ArgumentParser):
 
 def main():
 	parser = SentinelParser()
-	print(parser.args)
 	try:
 		parser.execute()
 	except Exception as e:

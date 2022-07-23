@@ -318,106 +318,107 @@ def lytton_fire():
 
 	plt.show()
 
-def milas_fire():
+def gonfaron_analysis():
 	# 26/07 Image
-	img1 = Image("Milas")
-	img1.pproc['pHigh'] = 0.75
+	img1 = Image("Gonfaron_Fire_0")
+	img1.pproc['pHigh'] = 0.5
 
 	# 07/08 Image
-	img2 = Image("Milas_Fire_2")
-	img2.pproc['pHigh'] = 1.5
+	img2 = Image("Gonfaron_Fire_2")
+	img2.pproc['pHigh'] = 0.5
 
 	# Norm
-	ndvi_norm = MidpointNormalize(vmin=0, vmax=1, midpoint=0.5)
+	ndvi_norm = MidpointNormalize(vmin=-0.5, vmax=1, midpoint=0.25)
 	ndwi_norm = MidpointNormalize(vmin=-1, vmax=1, midpoint=0)
 
 	# RGB Figure
 	plt.figure(1)
-	plt.suptitle("RGB image (B4, B3, B2)")
+	plt.suptitle("RGB image (B4, B3, B2)", fontsize=24, fontweight='bold')
 	plt.subplot(121)
-	plt.title("26/07/2021")
+	plt.title("02/08/2021", fontsize=16)
 	im = plt.imshow(img1.get_RGB('R10m'))
 	plt.xticks([])
 	plt.yticks([])
 
 	plt.subplot(122)
-	plt.title("07/08/2021")
+	plt.title("22/08/2021", fontsize=16)
 	plt.imshow(img2.get_RGB('R10m'))
 	plt.xticks([])
 	plt.yticks([])
+	
 	# FIR Figure
 	plt.figure(2)
-	plt.suptitle("FIR image (B8, B4, B3)")
+	plt.suptitle("FIR image (B8, B4, B3)", fontsize=24, fontweight='bold')
 	plt.subplot(121)
-	plt.title("26/07/2021")
+	plt.title("02/08/2021", fontsize=16)
 	plt.imshow(img1.get_FIR('R10m'))
 	plt.xticks([])
 	plt.yticks([])
 
 	plt.subplot(122)
-	plt.title("07/08/2021")
+	plt.title("22/08/2021", fontsize=16)
 	plt.imshow(img2.get_FIR('R10m'))
 	plt.xticks([])
 	plt.yticks([])
 
 	# NDVI Figure
 	plt.figure(3)
-	plt.suptitle("NDVI")
+	plt.suptitle("Normalized Diffirence vegetation Index", fontsize=24, fontweight='bold')
 	plt.subplot(121)
-	plt.title("26/07/2021")
+	plt.title("02/08/2021", fontsize=16)
 	ndvi1 = img1.get_NDVI("R10m")
-	plt.imshow(ndvi1, cmap="RdYlGn", norm=ndvi_norm)
+	plt.imshow(ndvi1, cmap="cubehelix_r", norm=ndvi_norm)
 	plt.xticks([])
 	plt.yticks([])
 	
 	plt.subplot(122)
-	plt.title("07/08/2021")
+	plt.title("22/08/2021", fontsize=16)
 	ndvi2 = img2.get_NDVI("R10m")
-	plt.imshow(ndvi2, cmap="RdYlGn", norm=ndvi_norm)
+	plt.imshow(ndvi2, cmap="cubehelix_r", norm=ndvi_norm)
 	plt.xticks([])
 	plt.yticks([])
 
 	# NDWI Figure
 	plt.figure(4)
-	plt.suptitle("NDWI")
+	plt.suptitle("Normalized Diffirence Water Index", fontsize=24, fontweight='bold')
 	plt.subplot(121)
-	plt.title("26/07/2021")
+	plt.title("02/08/2021", fontsize=16)
 	ndwi1 = img1.get_NDWI("R10m")
-	plt.imshow(ndwi1, cmap="magma", norm=ndwi_norm)
+	plt.imshow(ndwi1, cmap="viridis", norm=ndwi_norm)
 	plt.xticks([])
 	plt.yticks([])
 	
 	plt.subplot(122)
-	plt.title("07/08/2021")
+	plt.title("22/08/2021", fontsize=16)
 	ndwi2 = img2.get_NDWI("R10m")
-	plt.imshow(ndwi2, cmap="magma", norm=ndwi_norm)
+	plt.imshow(ndwi2, cmap="viridis", norm=ndwi_norm)
 	plt.xticks([])
 	plt.yticks([])
 
 	# NDMI Figure
 	plt.figure(5)
-	plt.suptitle("NDMI")
+	plt.suptitle("Normalized Diffirence Moisture Index", fontsize=24, fontweight='bold')
 	plt.subplot(121)
-	plt.title("26/07/2021")
+	plt.title("02/08/2021", fontsize=16)
 	ndmi1 = img1.get_NDMI("R20m")
 	count = np.count_nonzero(~np.isnan(ndmi1))
 	m = scl_based_mask(img2, 'R20m')
 	ndmi1[m] = np.nan
-	plt.imshow(ndmi1, cmap="jet_r", norm=ndwi_norm)
+	plt.imshow(ndmi1, cmap="magma_r", norm=ndwi_norm)
 	plt.xticks([])
 	plt.yticks([])
 	
 	plt.subplot(122)
-	plt.title("07/08/2021")
+	plt.title("22/08/2021", fontsize=16)
 	ndmi2 = img2.get_NDMI("R20m")
 	ndmi2[m] = np.nan
-	plt.imshow(ndmi2, cmap="jet_r", norm=ndwi_norm)
+	plt.imshow(ndmi2, cmap="magma_r", norm=ndwi_norm)
 	plt.xticks([])
 	plt.yticks([])
 
 	# NDMI difference Figure
 	plt.figure(6)
-	plt.suptitle("NDMI Difference")
+	plt.suptitle("NDMI Difference", fontsize=24, fontweight='bold')
 	diff = abs(ndmi1 - ndmi2)
 	plt.imshow(diff)
 	plt.colorbar()
@@ -426,75 +427,80 @@ def milas_fire():
 
 	# NDMI difference mask Figure
 	plt.figure(7)
-	plt.suptitle("NDMI Difference mask")
+	plt.suptitle("NDMI Difference mask", fontsize=24, fontweight='bold')
 	m_diff = diff > 0.35
 	plt.imshow(m_diff)
 	plt.xticks([])
 	plt.yticks([])
 
 	## Area covered by forest fire ##
-	relative_area = (count - np.count_nonzero(m_diff)) / count
+	relative_area = np.count_nonzero(m_diff) / count
 	print(f"Image area is about {img1.total_area} km2")
 	print(f"Burnt area is about {relative_area * img1.total_area} km2")
-	## About 339.18847144499534 km2 burnt
+	## About 49.02948925580708 km2 burnt
 
 	# NDMI pixels distribution
 	plt.figure(8)
-	plt.suptitle("NDMI pixels distribution")
+	plt.suptitle("NDMI pixels distribution", fontsize=24, fontweight='bold')
 	s1 = ndmi1.reshape(1, -1)[0]
 	s2 = ndmi2.reshape(1, -1)[0]
-	plt.hist(s1, bins=500, histtype='step', label="26/07/2021")
-	plt.hist(s2, bins=500, histtype='step', label="07/08/2021")
+	plt.hist(s1, bins=500, histtype='step', label="02/08/2021")
+	plt.hist(s2, bins=500, histtype='step', label="22/08/2021")
 	plt.xlabel("NDMI")
 	plt.ylabel("Number of pixels")
 	plt.legend()
 
 	plt.show()
 
-def milas_animation():
+def gonfaron_animation():
 	plt.rcParams['axes.facecolor'] = 'black'
 
-	# 26/07 Image
-	img1 = Image("Milas")
-	img1.pproc['pHigh'] = 0.75
+	# 02/08 Image
+	img1 = Image("Gonfaron_Fire_0")
+	img1.pproc['pHigh'] = 1
 
-	# 07/08 Image
-	img2 = Image("Milas_Fire_2")
-	img2.pproc['pHigh'] = 1.5
+	# 17/08 Image
+	img2 = Image("Gonfaron_Fire_1")
+	img2.pproc['pHigh'] = 1
+
+	# 22/08 Image
+	img3 = Image("Gonfaron_Fire_2")
+	img3.pproc['pHigh'] = 1
 
 	# Norm
-	ndvi_norm = MidpointNormalize(vmin=-1, vmax=0.2, midpoint=-0.4)
-	ndwi_norm = MidpointNormalize(vmin=-1, vmax=1, midpoint=0)
+	ndvi_norm = MidpointNormalize(vmin=-0.5, vmax=1, midpoint=0.25)
+	ndwi_norm = MidpointNormalize(vmin=-1, vmax=0.2, midpoint=-0.4)
+	ndmi_norm = MidpointNormalize(vmin=-1, vmax=1, midpoint=0)
 
-	ndvi1 = img1.get_FIR('R10m')
-	ndvi2 = img2.get_FIR('R10m')
+	arr1 = img1.get_NDVI('R10m')
+	arr2 = img2.get_NDVI('R10m')
+	arr3 = img3.get_NDVI('R10m')
 
-	l = [ndvi1, ndvi2]
+	l = [arr1, arr2, arr3]
+	dates = ["02/08/2021", "17/08/2021", "22/08/2021"]
 
-	fig = plt.figure(figsize=(14, 10))
+	fig = plt.figure(figsize=(9, 8))
 	fig.patch.set_facecolor('black')
-	#i = Img.open("sentinel_image_analysis\\utils\\figure\\logo\\sentinel_hub_bb.png")
-	#i = i.resize((i.size[0]//10, i.size[1]//10))
-	#fig.figimage(np.asarray(i), 40, 40, resize=True)
-	im = plt.imshow(ndvi1)
+	im = plt.imshow(arr1, cmap='cubehelix_r', norm=ndvi_norm)
 	im.axes.spines['top'].set_color('white')
 	im.axes.spines['left'].set_color('white')
 	im.axes.spines['right'].set_color('white')
 	im.axes.spines['bottom'].set_color('white')
 	plt.xticks([])
 	plt.yticks([])
-	plt.suptitle("FIR composite image (B8, B4, B3)",fontsize=24, fontweight='bold', color='white')
-	plt.title("Changes between 26/07 and 07/08", fontsize=16, color='white')
-	#col =plt.colorbar(fraction=0.058, pad=0.025, orientation='horizontal')
-	#col.ax.tick_params(color='white', labelcolor='white')
-	#col.outline.set_edgecolor('white')
+	plt.suptitle("Normalized Difference Vegetation Index", fontsize=24, fontweight='bold', color='white')
+	plt.title(dates[0], fontsize=16, color='white')
+	col = plt.colorbar(fraction=0.058, pad=0.025, orientation='horizontal')
+	col.ax.tick_params(color='white', labelcolor='white')
+	col.outline.set_edgecolor('white')
 	def update(i):
 		im.set_array(l[i])
+		im.axes.set_title(dates[i])
 		return [im]
 
-	anim = FuncAnimation(fig, update, frames=2, interval=1500)
-	#anim.save("Images//FIR_anim.gif", writer='imagemagick', savefig_kwargs={'facecolor':'black'})
-	plt.show()
+	anim = FuncAnimation(fig, update, frames=3, interval=1500)
+	anim.save("Images//NDVI_anim.gif", writer='imagemagick', savefig_kwargs={'facecolor':'black'})
+	#plt.show()
 
 if __name__ == '__main__':
-	milas_animation()
+	gonfaron_analysis()
